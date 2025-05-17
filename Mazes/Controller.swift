@@ -60,7 +60,8 @@ struct Controller: ViewRepresentable {
         var device: MTLDevice?
         var maze: Maze?
         var uniforms: Uniforms
-        var renderState: MTLRenderPipelineState?
+        var renderColorState: MTLRenderPipelineState?
+        var renderBorderState: MTLRenderPipelineState?
         var commandQueue: MTLCommandQueue?
         var lastUpdateTime: CFTimeInterval = 0
         
@@ -97,15 +98,29 @@ struct Controller: ViewRepresentable {
             let library = device.makeDefaultLibrary()
             
             let vertexFunction = library?.makeFunction(name: "main_vertex")
-            let fragmentFunction = library?.makeFunction(name: "main_fragment")
+            let colorFragmentFunction = library?.makeFunction(name: "color_fragment")
+            let borderFragmentFunction = library?.makeFunction(name: "border_fragment")
             
-            let renderPipelineDescriptor = MTLRenderPipelineDescriptor()
-            renderPipelineDescriptor.vertexFunction = vertexFunction
-            renderPipelineDescriptor.fragmentFunction = fragmentFunction
-            renderPipelineDescriptor.colorAttachments[0].pixelFormat = .bgra8Unorm
+            let renderBorderPipelineDescriptor = MTLRenderPipelineDescriptor()
+            renderBorderPipelineDescriptor.vertexFunction = vertexFunction
+            renderBorderPipelineDescriptor.fragmentFunction = borderFragmentFunction
+            renderBorderPipelineDescriptor.colorAttachments[0].pixelFormat = .bgra8Unorm
+            renderBorderPipelineDescriptor.colorAttachments[0].isBlendingEnabled = true
+            renderBorderPipelineDescriptor.colorAttachments[0].rgbBlendOperation = .add
+            renderBorderPipelineDescriptor.colorAttachments[0].alphaBlendOperation = .add
+            renderBorderPipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = .sourceAlpha
+            renderBorderPipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+            renderBorderPipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = .one
+            renderBorderPipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
+            
+            let renderColorPipelineDescriptor = MTLRenderPipelineDescriptor()
+            renderColorPipelineDescriptor.vertexFunction = vertexFunction
+            renderColorPipelineDescriptor.fragmentFunction = colorFragmentFunction
+            renderColorPipelineDescriptor.colorAttachments[0].pixelFormat = .bgra8Unorm
 
             do {
-                self.renderState = try device.makeRenderPipelineState(descriptor: renderPipelineDescriptor)
+                self.renderColorState = try device.makeRenderPipelineState(descriptor: renderColorPipelineDescriptor)
+                self.renderBorderState = try device.makeRenderPipelineState(descriptor: renderBorderPipelineDescriptor)
             } catch {
                 fatalError("Unable to compile render pipeline state: \(error)")
             }
@@ -122,32 +137,44 @@ struct Controller: ViewRepresentable {
         }
         
         func draw(in view: MTKView) {
-            // update time
+            // update time…
             let currentTime = CACurrentMediaTime()
             let deltaTime: Float = Float(currentTime - lastUpdateTime)
             lastUpdateTime = currentTime
             uniforms.time += deltaTime
+
+            guard let drawable        = view.currentDrawable,
+                  let descriptor      = view.currentRenderPassDescriptor,
+                  let queue           = commandQueue,
+                  let borderPipeline  = renderBorderState,
+                  let colorPipeline   = renderColorState else { return }
+
+            let cmdBuf = queue.makeCommandBuffer()!
+
+            let encoder = cmdBuf.makeRenderCommandEncoder(descriptor: descriptor)!
+            encoder.setFragmentBytes(&uniforms,
+                                     length: MemoryLayout<Uniforms>.stride,
+                                     index: 0)
+            encoder.setFragmentBuffer(maze!.getCellBuffer(),
+                                      offset: 0,
+                                      index: 1)
+
+            // first draw: color
+            encoder.setRenderPipelineState(colorPipeline)
+            encoder.drawPrimitives(type: .triangleStrip,
+                                   vertexStart: 0,
+                                   vertexCount: 6)
             
-            guard let drawable = view.currentDrawable,
-                  let commandQueue = self.commandQueue,
-                  let renderState = self.renderState else { return }
-            
-            let commandBuffer = commandQueue.makeCommandBuffer()
-            
-            guard let renderPassDescriptor = view.currentRenderPassDescriptor,
-                  let renderEncoder = commandBuffer?.makeRenderCommandEncoder(descriptor: renderPassDescriptor) else { return }
-            
-            renderEncoder.setRenderPipelineState(renderState)
-            
-            renderEncoder.setFragmentBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 0)
-            renderEncoder.setFragmentBuffer(maze!.getCellBuffer(), offset: 0, index: 1)
-            
-            // Draw full-screen quad
-            renderEncoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 6)
-            renderEncoder.endEncoding()
-            
-            commandBuffer?.present(drawable)
-            commandBuffer?.commit()
+            // second draw: borders
+            encoder.setRenderPipelineState(borderPipeline)
+            encoder.drawPrimitives(type: .triangleStrip,
+                                   vertexStart: 0,
+                                   vertexCount: 6)
+
+            encoder.endEncoding()
+
+            cmdBuf.present(drawable)
+            cmdBuf.commit()
         }
     }
 }

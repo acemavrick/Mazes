@@ -231,7 +231,7 @@ class Maze {
         backtrack(row_current: startRow, col_current: startCol)
     }
     
-    private func backtrack(row_current cr : Int, col_current cc : Int) {
+    private func backtrack(row_current cr : Int, col_current cc : Int, dist : Int = 0) {
         guard let cellPtr = getCell(row: cr, col: cc) else {
             return
         }
@@ -240,6 +240,7 @@ class Maze {
             return
         }
         cellPtr.pointee.visited = 1
+        cellPtr.pointee.dist = Int32(dist)
         
         let neighbors = getNeighbors(row: cr, col: cc)
         let shuffledNeighbors = neighbors.shuffled()
@@ -259,7 +260,7 @@ class Maze {
                 Thread.sleep(forTimeInterval: 0.001)
                 
                 // Recursively backtrack from the neighbor
-                backtrack(row_current: row, col_current: col)
+                backtrack(row_current: row, col_current: col, dist: dist + 1)
             }
         }
     }
@@ -277,6 +278,7 @@ class Maze {
             // Randomly select a cell from the frontier
             let randomIndex = Int.random(in: 0..<frontier.count)
             let currentCell = frontier[randomIndex]
+            let cellPtr = getCell(row: currentCell.row, col: currentCell.col)
             frontier.remove(at: randomIndex)
             
             let neighbors = getNeighbors(row: currentCell.row, col: currentCell.col).shuffled()
@@ -294,6 +296,7 @@ class Maze {
                     }
                     // Mark the neighbor as visited
                     neighborCell.pointee.visited = 1
+                    neighborCell.pointee.dist = cellPtr!.pointee.dist + 1
                 }
             }
         }
