@@ -6,13 +6,34 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		DBF376262DD79970008C07AE /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DBF376252DD79970008C07AE /* Metal.framework */; };
+		DBF376282DD79974008C07AE /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DBF376272DD79974008C07AE /* MetalKit.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		DBF374F92DD6E04B008C07AE /* Mazes.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Mazes.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DBF376252DD79970008C07AE /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.4.sdk/System/Library/Frameworks/Metal.framework; sourceTree = DEVELOPER_DIR; };
+		DBF376272DD79974008C07AE /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.4.sdk/System/Library/Frameworks/MetalKit.framework; sourceTree = DEVELOPER_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		DBF3762F2DD7FFFC008C07AE /* Exceptions for "Mazes" folder in "Mazes" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			platformFiltersByRelativePath = {
+				Frontend_iOS.swift = (ios, );
+				Frontend_macOS.swift = (macos, );
+			};
+			target = DBF374F82DD6E04B008C07AE /* Mazes */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		DBF374FB2DD6E04B008C07AE /* Mazes */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				DBF3762F2DD7FFFC008C07AE /* Exceptions for "Mazes" folder in "Mazes" target */,
+			);
 			path = Mazes;
 			sourceTree = "<group>";
 		};
@@ -23,6 +44,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DBF376282DD79974008C07AE /* MetalKit.framework in Frameworks */,
+				DBF376262DD79970008C07AE /* Metal.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -33,6 +56,7 @@
 			isa = PBXGroup;
 			children = (
 				DBF374FB2DD6E04B008C07AE /* Mazes */,
+				DBF376242DD79970008C07AE /* Frameworks */,
 				DBF374FA2DD6E04B008C07AE /* Products */,
 			);
 			sourceTree = "<group>";
@@ -43,6 +67,15 @@
 				DBF374F92DD6E04B008C07AE /* Mazes.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		DBF376242DD79970008C07AE /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				DBF376272DD79974008C07AE /* MetalKit.framework */,
+				DBF376252DD79970008C07AE /* Metal.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -252,9 +285,12 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = N44284XDCS;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = UIInterfaceOrientationLandscapeLeft;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -263,8 +299,11 @@
 				PRODUCT_BUNDLE_IDENTIFIER = dev.acemavrick.Mazes;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -277,9 +316,12 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = N44284XDCS;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = UIInterfaceOrientationLandscapeLeft;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -288,8 +330,11 @@
 				PRODUCT_BUNDLE_IDENTIFIER = dev.acemavrick.Mazes;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
