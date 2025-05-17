@@ -165,6 +165,10 @@ class Maze {
                 print("generating recursive DFS maze")
                 self.genRecursiveDFS()
                 break;
+            case .prims:
+                print("generating prims maze")
+                self.genPrims()
+                break;
             }
             self.block = false;
         }
@@ -260,6 +264,41 @@ class Maze {
         }
     }
     
+    func genPrims() {
+        clearMaze()
+        var frontier: [(row: Int, col: Int)] = []
+        
+        let startRow = Int.random(in: 0..<height)
+        let startCol = Int.random(in: 0..<width)
+        frontier.append((startRow, startCol))
+        getCell(row: startRow, col: startCol)?.pointee.visited = 1
+        
+        while !frontier.isEmpty {
+            // Randomly select a cell from the frontier
+            let randomIndex = Int.random(in: 0..<frontier.count)
+            let currentCell = frontier[randomIndex]
+            frontier.remove(at: randomIndex)
+            
+            let neighbors = getNeighbors(row: currentCell.row, col: currentCell.col).shuffled()
+            for neighbor in neighbors {
+                guard let neighborCell = getCell(row: neighbor.row, col: neighbor.col) else {
+                    continue
+                }
+                if (neighborCell.pointee.visited == 0) {
+                    // Connect the current cell to the neighbor
+                    connect(row1: currentCell.row, col1: currentCell.col, row2: neighbor.row, col2: neighbor.col)
+                    // add to frontier
+                    if !frontier.contains(where: { $0.row == neighbor.row && $0.col == neighbor.col }) {
+                        frontier.append((neighbor.row, neighbor.col))
+                        Thread.sleep(forTimeInterval: 0.00001)
+                    }
+                    // Mark the neighbor as visited
+                    neighborCell.pointee.visited = 1
+                }
+            }
+        }
+    }
+
     // Getters
     func getWidth() -> Int {
         return width

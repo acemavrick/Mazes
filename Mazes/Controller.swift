@@ -64,8 +64,9 @@ struct Controller: ViewRepresentable {
         var commandQueue: MTLCommandQueue?
         var lastUpdateTime: CFTimeInterval = 0
         
-        var DEF_START_DIM: Int = 50
-        
+//        var DEF_START_DIM: Int = 50
+        var DEF_START_DIM: Int = 300
+
         #if os(macOS)
         var displayScale: Float = 1.0
         #endif

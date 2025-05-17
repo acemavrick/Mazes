@@ -10,7 +10,7 @@ import SwiftUI
 
 class Model: ObservableObject {
     @Published var coordinator: Controller.Coordinator? = nil
-    @Published var currentOption: MazeTypes = .recursive_dfs
+    @Published var currentOption: MazeTypes = .prims
     
     public func generateMaze() {
         coordinator?.generateMaze(type: currentOption)

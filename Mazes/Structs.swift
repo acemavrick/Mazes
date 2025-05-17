@@ -12,6 +12,7 @@ import Metal
 enum MazeTypes: String, CaseIterable, Identifiable {
     case random = "Random"
     case recursive_dfs = "Rec DFS"
+    case prims = "Prim's"
     
     var id: String { self.rawValue }
 }
