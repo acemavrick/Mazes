@@ -76,6 +76,17 @@ struct Frontend_macOS: View {
                         
                         Controller(model: model)
                             .padding(8)
+                            .gesture(
+                                DragGesture(minimumDistance: 0)
+                                    .onEnded { value in
+                                        let location = value.location
+                                        let size = CGSize(
+                                            width: calculateOptimalSize(geometry: geometry) - 16,
+                                            height: calculateOptimalSize(geometry: geometry) - 16
+                                        )
+                                        model.handleMazeTap(at: location, in: size)
+                                    }
+                            )
                     }
                     .frame(
                         width: calculateOptimalSize(geometry: geometry),

@@ -70,7 +70,8 @@ struct Cell {
     var southWall: Int32 = 0
     var westWall: Int32 = 0
     // will be used to determine fill color (distance along trail)
-    var dist: Int32 = 0
+    // -1 means never visited (default color)
+    var dist: Int32 = -1
     // for use in fill algorithm
     var visited: Int32 = 0
     var _padding: Int32 = 0

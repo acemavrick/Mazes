@@ -6,6 +6,8 @@
 //
 
 #include <metal_stdlib>
+#define default_color float4(1.0)
+#define default_transparent float4(0.0)
 using namespace metal;
 
 // current time (seconds) and viewport size (pixels)
@@ -59,9 +61,6 @@ fragment float4 color_fragment(float4 coord [[position]],
     float inY = step(0.0, gridPos.y) * step(gridPos.y, uniforms.mazeDims.y);
     float inBounds = inX * inY;
     
-    // local pixel position within each cell
-    float2 posInCell = fract(gridPos) * uniforms.cellSize;
-    
     // clamp to valid cell indices
     int maxCol = int(uniforms.mazeDims.x) - 1;
     int maxRow = int(uniforms.mazeDims.y) - 1;
@@ -72,6 +71,11 @@ fragment float4 color_fragment(float4 coord [[position]],
     int index = rowSafe * int(uniforms.mazeDims.x) + colSafe;
     Cell cell = cells[index];
     
+    if (cell.dist == -1) return default_color;
+    
+    // local pixel position within each cell
+    float2 posInCell = fract(gridPos) * uniforms.cellSize;
+
     float phase = uniforms.time * 0.5 - float(cell.dist) * 0.01;
     
     float p = pulse(phase);
@@ -112,7 +116,7 @@ fragment float4 border_fragment(float4 coord [[position]],
 
     Cell cell = cells[index];
     
-    float4 oobColor = float4(1.0);
+    float4 oobColor = default_color;
     float color = 1.0;
     float thickness = max(uniforms.cellSize/20, 1.0);
     float mthickness = uniforms.cellSize - thickness;

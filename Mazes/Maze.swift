@@ -30,7 +30,7 @@ class Maze {
         // Create the buffer
         let bufferSize = MemoryLayout<Cell>.stride * width * height
         self.cellBuffer = self.device.makeBuffer(length: bufferSize, options: .storageModeShared)!
-
+        
         // Initialize cells with proper positions
         clearMaze()
     }
@@ -39,6 +39,7 @@ class Maze {
         let bufferSize = MemoryLayout<Cell>.stride * width * height
         self.cellBuffer = self.device.makeBuffer(length: bufferSize, options: .storageModeShared)!
     }
+    
     
     func resizeMaze(width: Int, height: Int) -> Bool {
         // Don't do anything if dimensions haven't changed
@@ -82,6 +83,74 @@ class Maze {
         
         for i in 0..<(width * height) {
             cellsPtr[i].visited = 0
+            cellsPtr[i].dist = -1
+        }
+    }
+    
+    func bfsFill(fromx x: Int, fromy y: Int) {
+        if (self.block) {
+            print("Maze operations are already in progress")
+            return
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+            self.block = true;
+            self.resetFillState()
+            
+            // BFS Fill, starting from x, y, and going outwards
+            print("BFS Fill from (\(x), \(y))")
+            
+            // Check if starting position is valid
+            guard x >= 0, x < self.height, y >= 0, y < self.width,
+                  let startCell = self.getCell(row: x, col: y) else {
+                return
+            }
+            
+            var queue: [(row: Int, col: Int)] = []
+            queue.append((x, y))
+            startCell.pointee.visited = 1
+            startCell.pointee.dist = 0
+            
+            while !queue.isEmpty {
+                let current = queue.removeFirst()
+                let currentCell = self.getCell(row: current.row, col: current.col)!
+                let currentDist = currentCell.pointee.dist
+                
+                // Check all four possible directions (up, right, down, left)
+                let directions = [(-1, 0), (0, 1), (1, 0), (0, -1)]
+                
+                for (dx, dy) in directions {
+                    let newRow = current.row + dx
+                    let newCol = current.col + dy
+                    
+                    // Check if the new position is within bounds
+                    guard newRow >= 0, newRow < self.height, newCol >= 0, newCol < self.width,
+                          let neighborCell = self.getCell(row: newRow, col: newCol),
+                          neighborCell.pointee.visited == 0 else {
+                        continue
+                    }
+                    
+                    // Check if there's a wall between current cell and neighbor
+                    var canMove = false
+                    if dx == -1 && currentCell.pointee.northWall == 1 { // Up
+                        canMove = true
+                    } else if dx == 1 && currentCell.pointee.southWall == 1 { // Down
+                        canMove = true
+                    } else if dy == -1 && currentCell.pointee.westWall == 1 { // Left
+                        canMove = true
+                    } else if dy == 1 && currentCell.pointee.eastWall == 1 { // Right
+                        canMove = true
+                    }
+                    
+                    if canMove {
+                        // Mark as visited and set distance before adding to queue
+                        neighborCell.pointee.visited = 1
+                        neighborCell.pointee.dist = currentDist + 1
+                        queue.append((newRow, newCol))
+                        Thread.sleep(forTimeInterval: 0.00001)
+                    }
+                }
+            }
+            self.block = false;
         }
     }
     
@@ -147,7 +216,7 @@ class Maze {
     
     func generate(type: MazeTypes) {
         if (self.block) {
-            print("Maze generation is already in progress")
+            print("Maze operations are already in progress")
             return
         }
         DispatchQueue.global(qos: .userInitiated).async {
@@ -192,16 +261,17 @@ class Maze {
         if row > 0 { // Up
             neighbors.append((row: row - 1, col: col))
         }
-        if row < height - 1 { // Down
-            neighbors.append((row: row + 1, col: col))
-        }
-        
-        if col > 0 { // Left
-            neighbors.append((row: row, col: col - 1))
-        }
         
         if col < width - 1 { // Right
             neighbors.append((row: row, col: col + 1))
+        }
+        
+        if row < height - 1 { // Down
+            neighbors.append((row: row + 1, col: col))
+        }
+
+        if col > 0 { // Left
+            neighbors.append((row: row, col: col - 1))
         }
         
         return neighbors
@@ -231,7 +301,7 @@ class Maze {
         backtrack(row_current: startRow, col_current: startCol)
     }
     
-    private func backtrack(row_current cr : Int, col_current cc : Int, dist : Int = 0) {
+    private func backtrack(row_current cr : Int, col_current cc : Int) {
         guard let cellPtr = getCell(row: cr, col: cc) else {
             return
         }
@@ -240,7 +310,6 @@ class Maze {
             return
         }
         cellPtr.pointee.visited = 1
-        cellPtr.pointee.dist = Int32(dist)
         
         let neighbors = getNeighbors(row: cr, col: cc)
         let shuffledNeighbors = neighbors.shuffled()
@@ -260,7 +329,7 @@ class Maze {
                 Thread.sleep(forTimeInterval: 0.001)
                 
                 // Recursively backtrack from the neighbor
-                backtrack(row_current: row, col_current: col, dist: dist + 1)
+                backtrack(row_current: row, col_current: col)
             }
         }
     }
@@ -278,7 +347,6 @@ class Maze {
             // Randomly select a cell from the frontier
             let randomIndex = Int.random(in: 0..<frontier.count)
             let currentCell = frontier[randomIndex]
-            let cellPtr = getCell(row: currentCell.row, col: currentCell.col)
             frontier.remove(at: randomIndex)
             
             let neighbors = getNeighbors(row: currentCell.row, col: currentCell.col).shuffled()
@@ -292,11 +360,10 @@ class Maze {
                     // add to frontier
                     if !frontier.contains(where: { $0.row == neighbor.row && $0.col == neighbor.col }) {
                         frontier.append((neighbor.row, neighbor.col))
-                        Thread.sleep(forTimeInterval: 0.00001)
+                        // no need to sleep- generation is slow enough to provide an animation effect
                     }
                     // Mark the neighbor as visited
                     neighborCell.pointee.visited = 1
-                    neighborCell.pointee.dist = cellPtr!.pointee.dist + 1
                 }
             }
         }

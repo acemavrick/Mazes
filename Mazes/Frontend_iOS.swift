@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
 
 struct Frontend_iOS: View {
     @StateObject private var model = Model()
@@ -65,9 +68,20 @@ struct Frontend_iOS: View {
                     }
                     .padding(.horizontal, 16)
                     
-                    // Maze display - maximum size
                     ZStack {
                         Controller(model: model)
+                            .gesture(
+                                // TODO doesn't work further from top left corner - most likely due to display scale handling issues
+                                DragGesture(minimumDistance: 0)
+                                    .onEnded { value in
+                                        let location = value.location
+                                        let size = CGSize(
+                                            width: calculateOptimalSize(geometry: geometry),
+                                            height: calculateOptimalSize(geometry: geometry)
+                                        )
+                                        model.handleMazeTap(at: location, in: size)
+                                    }
+                            )
                     }
                     .frame(
                         width: calculateOptimalSize(geometry: geometry),

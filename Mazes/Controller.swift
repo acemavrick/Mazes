@@ -87,6 +87,28 @@ struct Controller: ViewRepresentable {
             self.maze!.generate(type: type)
         }
         
+        func handleMazeTap(at point: CGPoint, in size: CGSize) {
+            guard let maze = self.maze else { return }
+            
+            let mazeWidth = maze.getWidth()
+            let mazeHeight = maze.getHeight()
+            
+            let cellWidth = size.width / CGFloat(mazeWidth)
+            let cellHeight = size.height / CGFloat(mazeHeight)
+            
+            let col = Int(point.x / cellWidth)
+            let row = Int(point.y / cellHeight)
+            
+            // Ensure the tap is within bounds
+            guard row >= 0, row < mazeHeight, col >= 0, col < mazeWidth else { 
+                print("Tap out of bounds: (\(row), \(col))")
+                return 
+            }
+            
+            print("Filling from cell: (\(row), \(col))")
+            maze.bfsFill(fromx: row, fromy: col)
+        }
+        
         func setupMetal() {
             guard let device = MTLCreateSystemDefaultDevice() else {
                 fatalError("Metal is not supported on this device.")
