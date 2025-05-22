@@ -65,12 +65,15 @@ struct Controller: ViewRepresentable {
         var commandQueue: MTLCommandQueue?
         var lastUpdateTime: CFTimeInterval = 0
         
-//        var DEF_START_DIM: Int = 50
-        var DEF_START_DIM: Int = 300
-
+        
+        
         #if os(macOS)
-        var displayScale: Float = 1.0
+        var DEF_START_DIM: Int = 300
+        #elseif os(iOS)
+        var DEF_START_DIM: Int = 100
         #endif
+
+        var displayScale: Float = 1.0
         
         init(_ parent: Controller, model: Model) {
             self.model = model
@@ -79,34 +82,79 @@ struct Controller: ViewRepresentable {
             super.init()
             model.coordinator = self
             setupMetal()
-            self.maze = Maze(device: self.device!, width: DEF_START_DIM, height: DEF_START_DIM)
-            self.uniforms.setMazeDims(height: DEF_START_DIM, width: DEF_START_DIM)
+            self.maze = Maze(device: self.device!, width: DEF_START_DIM, height: DEF_START_DIM, coordinator: self)
+            _ = self.uniforms.setMazeDims(height: DEF_START_DIM, width: DEF_START_DIM)
         }
         
-        func generateMaze(type: MazeTypes) {
-            self.maze!.generate(type: type)
+        func generateMaze(type: Maze.MazeTypes, completion: @escaping (Bool) -> Void) {
+            guard let maze = self.maze else {
+                print("Coordinator: Maze object not initialized.")
+                completion(false)
+                return
+            }
+            // Call the new generate method in Maze.swift which handles async and completion
+            maze.generate(type: type, completion: completion)
+        }
+
+        // Add these new methods for controlling maze generation
+        func pauseMazeGeneration() {
+            self.maze?.pauseGeneration()
+        }
+
+        func resumeMazeGeneration() {
+            self.maze?.resumeGeneration()
+        }
+
+        func stopMazeGeneration() {
+            self.maze?.stopGeneration()
         }
         
         func handleMazeTap(at point: CGPoint, in size: CGSize) {
-            guard let maze = self.maze else { return }
+            guard let maze = self.maze else {
+                print("Error: Maze object not initialized.")
+                return
+            }
             
             let mazeWidth = maze.getWidth()
             let mazeHeight = maze.getHeight()
             
-            let cellWidth = size.width / CGFloat(mazeWidth)
-            let cellHeight = size.height / CGFloat(mazeHeight)
+            let ds = CGFloat(self.displayScale)
+            let physicalTapX = point.x * ds
+            let physicalTapY = point.y * ds
+
+            // Calculate physical cell size, mirroring shader logic
+            // uniforms.resolution is already in physical pixels.
+            // mazeWidth/mazeHeight (local vars) are in cells.
+            guard mazeWidth > 0, mazeHeight > 0 else {
+                print("Error: Maze dimensions (cells) are zero.")
+                return
+            }
+            guard self.uniforms.resolution.x > 0, self.uniforms.resolution.y > 0 else {
+                print("Error: Uniforms resolution (physical pixels) is zero.")
+                return
+            }
+
+            let cellWidth = CGFloat(self.uniforms.cellSize)
             
-            let col = Int(point.x / cellWidth)
-            let row = Int(point.y / cellHeight)
+            // get the col and row from the tap
+            let col = Int(physicalTapX / cellWidth)
+            let row = Int(physicalTapY / cellWidth)
             
             // Ensure the tap is within bounds
             guard row >= 0, row < mazeHeight, col >= 0, col < mazeWidth else { 
-                print("Tap out of bounds: (\(row), \(col))")
-                return 
+                print("Tap out of bounds: (row: \(row), col: \(col)) - Maze (h: \(mazeHeight), w: \(mazeWidth))")
+                return
             }
             
-            print("Filling from cell: (\(row), \(col))")
-            maze.bfsFill(fromx: row, fromy: col)
+            //            print("Filling from cell: (\(row), \(col))")
+            // maze.resetFillState()
+            maze.bfsFill(fromx: col, fromy: row)
+            print("Called bfsFill(fromx: \(col), fromy: \(row))")
+//             for _ in 0..<50 {
+//                 let x = Int.random(in: 0..<mazeHeight)
+//                 let y = Int.random(in: 0..<mazeWidth)
+//                 maze.bfsFill(fromx: x, fromy: y)
+//             }
         }
         
         func setupMetal() {
@@ -150,11 +198,14 @@ struct Controller: ViewRepresentable {
         
         func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
             if uniforms.setResolution(size) {
-                #if os(macOS)
                 if let window = view.window {
+                    #if os(macOS)
                     self.displayScale = Float(window.backingScaleFactor)
+                    #endif
+                    #if os(iOS)
+                    self.displayScale = Float(window.contentScaleFactor)
+                    #endif
                 }
-                #endif
             }
         }
         

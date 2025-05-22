@@ -9,13 +9,6 @@ import Foundation
 import simd
 import Metal
 
-enum MazeTypes: String, CaseIterable, Identifiable {
-    case random = "Random"
-    case recursive_dfs = "Rec DFS"
-    case prims = "Prim's"
-    
-    var id: String { self.rawValue }
-}
  
 struct Uniforms {
     var time: Float = 0
@@ -23,6 +16,7 @@ struct Uniforms {
     // maze dimensions, height x width
     var mazeDims: simd_float2 = [0.0, 0.0]
     var cellSize: Float = 0
+    var maxDist: Int32 = 1
     
     mutating func setResolution(_ size: CGSize) -> Bool {
         let newResolution = SIMD2<Float>(Float(size.width), Float(size.height))
@@ -73,6 +67,6 @@ struct Cell {
     // -1 means never visited (default color)
     var dist: Int32 = -1
     // for use in fill algorithm
-    var visited: Int32 = 0
-    var _padding: Int32 = 0
+    var genVisited: Int32 = 0
+    var fillVisited: Int32 = 0
 }

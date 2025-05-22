@@ -3,125 +3,217 @@
 //  Mazes
 //
 //  Created by acemavrick on 5/16/25.
+//  Rewritten by Cascade on 2025-05-20.
 //
 
 import SwiftUI
 
 struct Frontend_macOS: View {
-    @StateObject private var model = Model()
-    
-    // Custom gradient colors - vibrant multicolor gradient
-    private let gradientStart = Color(red: 0.0, green: 0.8, blue: 0.8) // Teal
-    private let gradientMiddle = Color(red: 0.1, green: 0.6, blue: 0.9) // Blue
-    private let gradientEnd = Color(red: 0.5, green: 0.2, blue: 0.9) // Purple
-    
+    @StateObject private var model = Model() // Manages maze state and logic
+
     var body: some View {
-        GeometryReader { geometry in
+        HSplitView {
+            // Maze View (Primary Content)
+            MazeView(model: model)
+                .layoutPriority(1) // Ensures MazeView gets more space if available
+
+            // Controls Panel (Secondary Content)
+            ControlsView(model: model)
+                .frame(minWidth: 220, idealWidth: 260, maxWidth: 350) // Define size constraints for the control panel
+        }
+        .navigationTitle("Mazes") // Sets the window title
+        .frame(minWidth: 700, minHeight: 500) // Suggest a minimum window size for usability
+    }
+}
+
+struct MazeView: View {
+    @ObservedObject var model: Model
+    @Environment(\.displayScale) var displayScale: CGFloat
+    private let controllerPadding: CGFloat = 8 // Padding around the Metal view, inside the rounded rect
+
+    var body: some View {
+        GeometryReader { geometryProxyOfAllocatedSpace in
+            // Determine the largest possible square side length within the allocated space
+            let mazeDisplaySideLength = min(geometryProxyOfAllocatedSpace.size.width, geometryProxyOfAllocatedSpace.size.height)
+            
+            // The actual size of the Controller's renderable area
+            let controllerRenderSize = CGSize(
+                width: mazeDisplaySideLength - 2 * controllerPadding,
+                height: mazeDisplaySideLength - 2 * controllerPadding
+            )
+
             ZStack {
-                // Background using macOS standard window background
-                Color(NSColor.windowBackgroundColor)
-                    .ignoresSafeArea()
+                // Background for the maze container
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(NSColor.textBackgroundColor)) // A standard background color for content areas
+                    .shadow(color: Color.black.opacity(0.12), radius: 6, x: 0, y: 3) // A slightly more pronounced shadow
                 
-                VStack(spacing: 16) {
-                    // Top controls area - simplified with full-width dropdown
-                    HStack {
-                        Text("Maze Type:")
-                            .font(.system(size: 13))
-                        
-                        Picker("", selection: $model.currentOption) {
-                            ForEach(MazeTypes.allCases) { type in
-                                Text(type.rawValue).tag(type)
-                            }
-                        }
-                        .pickerStyle(MenuPickerStyle())
-                        .labelsHidden()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
-                    
-                    // Generate button - full-width gradient button with entire area clickable
-                    Button {
-                        withAnimation {
-                            model.generateMaze()
-                        }
-                    } label: {
-                        HStack {
-                            Image(systemName: "wand.and.stars")
-                                .font(.system(size: 14))
-                            Text("Generate Maze")
-                                .font(.system(size: 14, weight: .medium))
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .background(
-                            LinearGradient(
-                                gradient: Gradient(colors: [gradientStart, gradientMiddle, gradientEnd]),
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .foregroundColor(.white)
-                        .cornerRadius(4)
-                        .contentShape(Rectangle()) // Make entire area clickable
-                    }
-                    .buttonStyle(ClickableButtonStyle()) // Custom style to ensure full area is clickable
-                    .padding(.horizontal, 16)
-                    
-                    // Maze display - maximized
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.white)
-                            .shadow(color: Color.black.opacity(0.05), radius: 1)
-                        
-                        Controller(model: model)
-                            .padding(8)
-                            .gesture(
-                                DragGesture(minimumDistance: 0)
-                                    .onEnded { value in
-                                        let location = value.location
-                                        let size = CGSize(
-                                            width: calculateOptimalSize(geometry: geometry) - 16,
-                                            height: calculateOptimalSize(geometry: geometry) - 16
-                                        )
-                                        model.handleMazeTap(at: location, in: size)
+                // The Controller (MTKView)
+                if controllerRenderSize.width > 0 && controllerRenderSize.height > 0 { // Ensure valid size before creating Controller
+                    Controller(model: model)
+                        .frame(width: controllerRenderSize.width, height: controllerRenderSize.height)
+                        .gesture(
+                            DragGesture(minimumDistance: 0)
+                                .onEnded { value in
+                                    if value.location.x >= 0 && value.location.x <= controllerRenderSize.width &&
+                                        value.location.y >= 0 && value.location.y <= controllerRenderSize.height {
+                                        model.handleMazeTap(at: value.location, in: controllerRenderSize)
                                     }
-                            )
-                    }
-                    .frame(
-                        width: calculateOptimalSize(geometry: geometry),
-                        height: calculateOptimalSize(geometry: geometry)
-                    )
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 16)
-                    
-                    Spacer(minLength: 0)
+                                })
+                } else {
+                    // Placeholder if the size is too small to render
+                    Text("Window too small")
+                        .foregroundColor(.secondary)
                 }
             }
+            // Frame the ZStack (maze container) to be square and centered
+            .frame(width: mazeDisplaySideLength, height: mazeDisplaySideLength)
+            // Center the square ZStack within the available geometryProxyOfAllocatedSpace
+            .frame(width: geometryProxyOfAllocatedSpace.size.width, height: geometryProxyOfAllocatedSpace.size.height)
+            .animation(.default, value: mazeDisplaySideLength) // Animate size changes
         }
-    }
-    
-    // Calculate optimal square size for Controller
-    private func calculateOptimalSize(geometry: GeometryProxy) -> CGFloat {
-        let horizontalPadding: CGFloat = 32
-        let controlsHeight: CGFloat = 96 // Height of top controls and generate button
-        
-        let availableWidth = geometry.size.width - horizontalPadding
-        let availableHeight = geometry.size.height - controlsHeight - 32
-        
-        return min(availableWidth, availableHeight)
+        .padding() // Padding around the entire MazeView content
+        .background(Color(NSColor.windowBackgroundColor).ignoresSafeArea()) // Background for the MazeView panel
     }
 }
 
-// Custom button style that ensures the entire button area is clickable
-struct ClickableButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .opacity(configuration.isPressed ? 0.8 : 1.0)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+struct ControlsView: View {
+    @ObservedObject var model: Model
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Maze Configuration")
+                .font(.title2)
+                .fontWeight(.semibold)
+                .padding(.bottom, 8)
+
+            // Maze Type Picker - Modernized
+            Text("Algorithm:")
+                .font(.headline)
+                .padding(.bottom, 2)
+
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(Maze.MazeTypes.allCases) { type in
+                    Button(action: {
+                        if model.generationState == .idle {
+                            model.currentOption = type
+                        }
+                    }) {
+                        HStack {
+                            Text(type.rawValue)
+                                .foregroundColor(model.currentOption == type ? .white : .primary)
+                            Spacer()
+                            if model.currentOption == type {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity)
+                        .background(model.currentOption == type ? Color.accentColor : Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(8)
+                        .shadow(color: Color.black.opacity(model.currentOption == type ? 0.1 : 0.05), radius: model.currentOption == type ? 3 : 1, x: 0, y: model.currentOption == type ? 2 : 1)
+                    }
+                    .buttonStyle(.plain) // Use .plain to allow full background customization
+                    .disabled(model.generationState != .idle)
+                }
+            }
+            .padding(.bottom, 10) // Add some space after the picker
+
+            // Conditional Controls based on generation state
+            switch model.generationState {
+            case .idle:
+                Button {
+                    withAnimation {
+                        model.startMazeGeneration() // Call the new method
+                    }
+                } label: {
+                    Label("Generate New Maze", systemImage: "wand.and.sparkles")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .keyboardShortcut(.defaultAction)
+
+            case .generating:
+                VStack(spacing: 10) {
+                    HStack {
+                        Button {
+                            model.pauseMazeGeneration()
+                        } label: {
+                            Label("Pause", systemImage: "pause.fill")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .controlSize(.large)
+
+                        Button {
+                            model.stopMazeGeneration()
+                        } label: {
+                            Label("Stop", systemImage: "stop.fill")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .controlSize(.large)
+                        .tint(.red) // Make stop button visually distinct
+                    }
+                    ProgressView("Generating Maze...")
+                        .progressViewStyle(.linear)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 5)
+                }
+            
+            case .paused:
+                VStack(spacing: 10) {
+                    Text("Generation Paused")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, 5)
+                    HStack {
+                        Button {
+                            model.resumeMazeGeneration()
+                        } label: {
+                            Label("Resume", systemImage: "play.fill")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .controlSize(.large)
+
+                        Button {
+                            model.stopMazeGeneration()
+                        } label: {
+                            Label("Stop", systemImage: "stop.fill")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .controlSize(.large)
+                        .tint(.red)
+                    }
+                }
+            }
+
+            Divider()
+                .padding(.vertical, 10)
+
+            // Placeholder for future controls (e.g., solver)
+            Group {
+                Text("Solver Options")
+                    .font(.headline)
+                Text("Pathfinding controls will appear here in a future update.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer() // Pushes controls to the top
+        }
+        .padding()
+        .background(.thinMaterial) // Modern translucent background for the control panel
+        .animation(.easeInOut(duration: 0.2), value: model.generationState) // Animate state changes smoothly
     }
 }
 
-#Preview {
-    Frontend_macOS()
+// Preview for Xcode Canvas
+#if DEBUG
+struct Frontend_macOS_Previews: PreviewProvider {
+    static var previews: some View {
+        Frontend_macOS()
+    }
 }
+#endif
