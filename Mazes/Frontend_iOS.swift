@@ -5,18 +5,19 @@ struct Frontend_iOS: View {
 
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
+            ZStack(alignment: .bottom) {
+                // Maze view occupies most of the screen
                 MazeView_iOS(model: model)
-                    .layoutPriority(1) // Give more space to the maze
-
+                    .edgesIgnoringSafeArea([.horizontal])
+                
+                // Controls panel slides up from bottom
                 ControlsView_iOS(model: model)
-                    .frame(maxHeight: .infinity, alignment: .bottom) // Push controls to bottom
             }
-            .background(Color(UIColor.systemGroupedBackground).ignoresSafeArea())
+            .background(Color(UIColor.systemBackground).edgesIgnoringSafeArea(.all))
             .navigationTitle("Mazes")
             .navigationBarTitleDisplayMode(.inline)
         }
-        .navigationViewStyle(.stack) // Use stack style for a more standard iOS appearance
+        .navigationViewStyle(.stack)
     }
 }
 
@@ -25,27 +26,31 @@ struct MazeView_iOS: View {
     private let controllerPadding: CGFloat = 8 // Padding around the Metal view
 
     var body: some View {
-        GeometryReader { geometryProxyOfAllocatedSpace in
-            let mazeDisplaySideLength = min(geometryProxyOfAllocatedSpace.size.width, geometryProxyOfAllocatedSpace.size.height) - 2 * 16 // 16 for overall padding
+        GeometryReader { geometryProxy in
+            // Determine available space considering safe areas
+            let availableWidth = geometryProxy.size.width
+            let availableHeight = geometryProxy.size.height * 0.65 // Allow 65% of height for maze
             
+            // Calculate square size based on available space
+            let mazeDisplaySideLength = min(availableWidth, availableHeight) - 32 // Padding
+            
+            // Calculate controller size accounting for padding
             let controllerRenderSize = CGSize(
-                width: max(0, mazeDisplaySideLength - 2 * controllerPadding),
-                height: max(0, mazeDisplaySideLength - 2 * controllerPadding)
+                width: mazeDisplaySideLength - 2 * controllerPadding,
+                height: mazeDisplaySideLength - 2 * controllerPadding
             )
 
             ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Material.regular) // iOS-style material background
-                    .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Material.regularMaterial) // iOS material background
+                    .shadow(color: Color.black.opacity(0.15), radius: 10, x: 0, y: 5)
                 
                 if controllerRenderSize.width > 0 && controllerRenderSize.height > 0 {
-                    Controller(model: model) // Assuming Controller is your UIViewRepresentable for MTKView
+                    Controller(model: model)
                         .frame(width: controllerRenderSize.width, height: controllerRenderSize.height)
-                        .clipShape(RoundedRectangle(cornerRadius: 12 - controllerPadding)) // Clip MTKView to inner bounds
                         .gesture(
                             DragGesture(minimumDistance: 0)
                                 .onEnded { value in
-                                    // Ensure tap is within the controller's bounds
                                     if value.location.x >= 0 && value.location.x <= controllerRenderSize.width &&
                                        value.location.y >= 0 && value.location.y <= controllerRenderSize.height {
                                         model.handleMazeTap(at: value.location, in: controllerRenderSize)
@@ -58,111 +63,332 @@ struct MazeView_iOS: View {
                 }
             }
             .frame(width: mazeDisplaySideLength, height: mazeDisplaySideLength)
-            .frame(width: geometryProxyOfAllocatedSpace.size.width, height: geometryProxyOfAllocatedSpace.size.height) // Center in available space
+            .position(
+                x: geometryProxy.frame(in: .local).midX,
+                y: geometryProxy.frame(in: .local).midY - 60 // Shift up to make room for controls
+            )
             .animation(.default, value: mazeDisplaySideLength)
         }
-        .padding(.vertical, 16) // Add some vertical padding for the whole MazeView container
-        .padding(.horizontal, 16)
     }
 }
 
 struct ControlsView_iOS: View {
     @ObservedObject var model: Model
+    @State private var selectedTab = 0 // 0 = Generate, 1 = Solve
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Tab selector
+            Picker("Options", selection: $selectedTab) {
+                Text("Generate").tag(0)
+                Text("Solve").tag(1)
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+            .padding(.top, 12)
+            
+            // Dynamic content based on selected tab
+            if selectedTab == 0 {
+                GenerationView(model: model)
+            } else {
+                SolverView(model: model)
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .fill(Material.thin)
+                .shadow(color: Color.black.opacity(0.15), radius: 10, x: 0, y: -5)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .animation(.spring(), value: selectedTab)
+    }
+}
 
+struct GenerationView: View {
+    @ObservedObject var model: Model
+    @State private var showAlgorithmPicker = false
+    
     var body: some View {
         VStack(spacing: 16) {
-            // Maze Type Picker
-            Picker("Algorithm", selection: $model.currentOption) {
-                ForEach(MazeTypes.allCases) { type in
-                    Text(type.rawValue).tag(type)
+            // Algorithm selection button
+            Button {
+                withAnimation {
+                    showAlgorithmPicker.toggle()
                 }
+            } label: {
+                HStack {
+                    Text("Algorithm: \(model.currentMazeAlgorithm.rawValue)")
+                        .fontWeight(.medium)
+                    Spacer()
+                    Image(systemName: showAlgorithmPicker ? "chevron.up" : "chevron.down")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 10)
+                .background(Color(UIColor.secondarySystemBackground))
+                .cornerRadius(10)
             }
-            .pickerStyle(.segmented) // A common iOS picker style for few options
+            .buttonStyle(.plain)
             .disabled(model.generationState != .idle)
-
-            // Conditional Controls based on generation state
-            switch model.generationState {
-            case .idle:
-                Button {
-                    withAnimation {
-                        model.startMazeGeneration()
-                    }
-                } label: {
-                    Label("Generate New Maze", systemImage: "wand.and.sparkles")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-
-            case .generating:
-                VStack(spacing: 10) {
-                    HStack(spacing: 10) {
-                        Button {
-                            model.pauseMazeGeneration()
-                        } label: {
-                            Label("Pause", systemImage: "pause.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.large)
-
-                        Button {
-                            model.stopMazeGeneration()
-                        } label: {
-                            Label("Stop", systemImage: "stop.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.red)
-                        .controlSize(.large)
-                    }
-                    ProgressView("Generating Maze...")
-                        .progressViewStyle(.linear)
-                        .padding(.vertical, 5)
-                }
+            .padding(.horizontal)
             
-            case .paused:
-                VStack(spacing: 10) {
-                    Text("Generation Paused")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                    HStack(spacing: 10) {
-                        Button {
-                            model.resumeMazeGeneration()
-                        } label: {
-                            Label("Resume", systemImage: "play.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-
-                        Button {
-                            model.stopMazeGeneration()
-                        } label: {
-                            Label("Stop", systemImage: "stop.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.red)
-                        .controlSize(.large)
-                    }
-                }
+            // Expandable algorithm picker
+            if showAlgorithmPicker {
+                MazeAlgorithmPickerView_iOS(model: model)
+                    .padding(.horizontal)
+                    .transition(.scale(scale: 0.95).combined(with: .opacity))
             }
             
-            // Placeholder for future solver controls
-            DisclosureGroup("Solver Options (Coming Soon)") {
-                Text("Pathfinding controls will appear here in a future update.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(.top, 4)
-            }
-            .disabled(true) // Disable until implemented
-
+            // Generation controls
+            GenerationControlsView_iOS(model: model)
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+                .padding(.top, showAlgorithmPicker ? 0 : 8)
+            
+            // Status bar area - safe area padding
+            Color.clear
+                .frame(height: 16)
         }
-        .padding()
-        .background(.thinMaterial) // Modern translucent background for the control panel
-        .cornerRadius(16, corners: [.topLeft, .topRight]) // Round top corners if against bottom edge
-        .animation(.easeInOut(duration: 0.2), value: model.generationState)
+        .padding(.top, 8)
+    }
+}
+
+struct SolverView: View {
+    @ObservedObject var model: Model
+    @State private var showAlgorithmPicker = false
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            // Algorithm selection button
+            Button {
+                withAnimation {
+                    showAlgorithmPicker.toggle()
+                }
+            } label: {
+                HStack {
+                    Text("Algorithm: \(model.currentSolveAlgorithm.rawValue)")
+                        .fontWeight(.medium)
+                    Spacer()
+                    Image(systemName: showAlgorithmPicker ? "chevron.up" : "chevron.down")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 10)
+                .background(Color(UIColor.secondarySystemBackground))
+                .cornerRadius(10)
+            }
+            .buttonStyle(.plain)
+            .disabled(model.generationState != .idle)
+            .padding(.horizontal)
+            
+            // Expandable algorithm picker
+            if showAlgorithmPicker {
+                SolverAlgorithmPickerView_iOS(model: model)
+                    .padding(.horizontal)
+                    .transition(.scale(scale: 0.95).combined(with: .opacity))
+            }
+            
+            // Solve button
+            Button {
+                model.startMazeSolving()
+            } label: {
+                Text("Solve Maze")
+                    .fontWeight(.semibold)
+                    .frame(height: 44)
+                    .frame(maxWidth: .infinity)
+                    .background(model.generationState == .idle ? Color.blue : Color.gray)
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+            }
+            .buttonStyle(.plain)
+            .disabled(model.generationState != .idle)
+            .padding(.horizontal)
+            .padding(.bottom, model.generationState == .idle ? 24 : 8)
+            
+            // Instructions for BFS tap solving
+            if model.currentSolveAlgorithm == .bfs && model.generationState == .idle {
+                HStack {
+                    Image(systemName: "hand.tap.fill")
+                        .foregroundColor(.secondary)
+                    Text("Tap the maze to fill from that point")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.bottom, 24)
+            }
+            
+            // Status bar area - safe area padding
+            Color.clear
+                .frame(height: 16)
+        }
+        .padding(.top, 8)
+    }
+}
+
+struct MazeAlgorithmPickerView_iOS: View {
+    @ObservedObject var model: Model
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(MazeTypes.allCases) { type in
+                Button(action: {
+                    if model.generationState == .idle {
+                        model.currentMazeAlgorithm = type
+                    }
+                }) {
+                    HStack {
+                        Text(type.rawValue)
+                            .foregroundColor(model.currentMazeAlgorithm == type ? .white : .primary)
+                        Spacer()
+                        if model.currentMazeAlgorithm == type {
+                            Image(systemName: "checkmark")
+                                .foregroundColor(.white)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(model.currentMazeAlgorithm == type ? Color.blue : Color.clear)
+                    .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+                .disabled(model.generationState != .idle)
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(UIColor.tertiarySystemBackground))
+        )
+        .padding(.bottom, 4)
+    }
+}
+
+struct SolverAlgorithmPickerView_iOS: View {
+    @ObservedObject var model: Model
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(SolveTypes.allCases) { type in
+                Button(action: {
+                    if model.generationState == .idle {
+                        model.currentSolveAlgorithm = type
+                    }
+                }) {
+                    HStack {
+                        Text(type.rawValue)
+                            .foregroundColor(model.currentSolveAlgorithm == type ? .white : .primary)
+                        Spacer()
+                        if model.currentSolveAlgorithm == type {
+                            Image(systemName: "checkmark")
+                                .foregroundColor(.white)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(model.currentSolveAlgorithm == type ? Color.blue : Color.clear)
+                    .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+                .disabled(model.generationState != .idle)
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(UIColor.tertiarySystemBackground))
+        )
+        .padding(.bottom, 4)
+    }
+}
+
+struct GenerationControlsView_iOS: View {
+    @ObservedObject var model: Model
+
+    var body: some View {
+        switch model.generationState {
+        case .idle:
+            Button {
+                withAnimation {
+                    model.startMazeGeneration()
+                }
+            } label: {
+                Text("Generate New Maze")
+                    .fontWeight(.semibold)
+                    .frame(height: 44)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+            }
+            .buttonStyle(.plain)
+
+        case .generating:
+            VStack(spacing: 10) {
+                ProgressView("Generating Maze...")
+                    .progressViewStyle(.linear)
+                    .padding(.bottom, 4)
+                
+                HStack(spacing: 12) {
+                    Button {
+                        model.pauseMazeGeneration()
+                    } label: {
+                        Label("Pause", systemImage: "pause.fill")
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                            .background(Color(UIColor.secondarySystemBackground))
+                            .foregroundColor(.primary)
+                            .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        model.stopMazeGeneration()
+                    } label: {
+                        Label("Stop", systemImage: "stop.fill")
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                            .background(Color.red.opacity(0.8))
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        
+        case .paused:
+            VStack(spacing: 10) {
+                Text("Generation Paused")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .padding(.bottom, 4)
+                
+                HStack(spacing: 12) {
+                    Button {
+                        model.resumeMazeGeneration()
+                    } label: {
+                        Label("Resume", systemImage: "play.fill")
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        model.stopMazeGeneration()
+                    } label: {
+                        Label("Stop", systemImage: "stop.fill")
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                            .background(Color.red.opacity(0.8))
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
     }
 }
 
@@ -183,16 +409,16 @@ struct RoundedCorner: Shape {
     }
 }
 
-
 #if DEBUG
 struct Frontend_iOS_Previews: PreviewProvider {
     static var previews: some View {
         Frontend_iOS()
-            .preferredColorScheme(.dark) // Example with dark mode
+            .previewDevice("iPhone 13")
         
         Frontend_iOS()
-            .preferredColorScheme(.light) // Example with light mode
-            .previewDisplayName("Frontend_iOS Light")
+            .preferredColorScheme(.dark)
+            .previewDevice("iPhone 13")
+            .previewDisplayName("Dark Mode")
     }
 }
 #endif
