@@ -73,7 +73,7 @@ struct ControlsView_iOS: View {
         VStack(spacing: 16) {
             // Maze Type Picker
             Picker("Algorithm", selection: $model.currentOption) {
-                ForEach(Maze.MazeTypes.allCases) { type in
+                ForEach(MazeTypes.allCases) { type in
                     Text(type.rawValue).tag(type)
                 }
             }

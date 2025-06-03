@@ -91,14 +91,14 @@ fragment float4 color_fragment(float4 coord [[position]],
     Cell cell = cells[index];
     
     // Return default color for unvisited cells or out of bounds
-    if (cell.fillVisited == 0 || inBounds < 0.5) {
+    if (cell.fillVisited * (cell.dist+1) <= 0 || inBounds < 0.5) {
         return DEFAULT_COLOR;
     }
     
-    // Calculate normalized distance (0 to 1) for color mapping
-    // use a max distance to ensure colors repeat nicely
+    // Calculate normalized distance (0 to 1) for color mapping using step functions
     const float maxDist = uniforms.maxDist;
-    float normalizedDist = fract(float(cell.dist) / maxDist);
+    float dist = float(cell.dist);
+    float normalizedDist = fract(dist / maxDist) * step(dist, maxDist*5);
     
     // Get color from gradient
     float3 color = getColorForDistance(normalizedDist);
@@ -114,7 +114,7 @@ fragment float4 color_fragment(float4 coord [[position]],
 
     // Apply to pulse: range 0.5 (darkest) to 1.0 (brightest) -> 50% brightness reduction at darkest
     float pulse = 0.5 + 0.5 * shaped_wave; 
-    color *= pulse;
+    color *= pulse * cell.genVisited;
     
     // Apply a subtle vignette effect based on distance from center
     float2 center = uniforms.mazeDims * 0.5;

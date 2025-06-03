@@ -72,7 +72,7 @@ class Maze {
     private let pauseCondition = NSCondition() // For managing pause/resume thread synchronization
     private let generationQueue = DispatchQueue(label: "com.mazes.generationQueue", qos: .userInitiated)
     private let MIN_SLEEP_INTERVAL: TimeInterval = 0.00000001 // Minimum sleep for responsiveness
-    private let BFS_SLEEP_INTERVAL: TimeInterval = 0.0001 // Sleep for BFS to avoid tight loops
+    private let BFS_SLEEP_INTERVAL: TimeInterval = 0.00001 // Sleep for BFS for animation purposes
     private var animationDelay: TimeInterval = 0.001 // Current animation delay for the active generation
     private var customAnimationDelays: [MazeTypes: TimeInterval] = [:] // Stores user-set custom delays
     private var lastHuntRowForScan: Int = 0 // For Hunt-and-Kill optimization
@@ -104,6 +104,7 @@ class Maze {
         return true
     }
     
+    // reset maze with empty cells
     func clearMaze() {
         let cellsPtr = cellBuffer.contents().bindMemory(to: Cell.self, capacity: width * height)
         for row in 0..<height {
@@ -117,6 +118,7 @@ class Maze {
         }
     }
     
+    // reset fill state of cells (for fill/solve algorithms)
     func resetFillState() {
         let cellsPtr = cellBuffer.contents().bindMemory(to: Cell.self, capacity: width * height)
         for i in 0..<(width * height) {
@@ -124,8 +126,385 @@ class Maze {
             cellsPtr[i].dist = -1
         }
     }
+    
+    // MARK: Solving
+    public func start_solve(using algo: SolveTypes) {
+        guard !isGenerating else {
+            print("Maze.solve: Cannot solve while generating.")
+            return
+        }
 
-    // --- Generation Control Methods ---
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in // Added weak self
+            guard let self = self else { return }
+            switch algo {
+            case .bfs:
+                solveBFS()
+            case .astar:
+                solveAStar()
+            case .dijkstra:
+                solveDijkstra()
+            }
+        }
+    }
+    
+    // check if two cells are connected (no wall between them)
+    func isConnected(row1: Int, col1: Int, row2: Int, col2: Int) -> Bool {
+        guard let cell1 = getCell(row: row1, col: col1),
+              let cell2 = getCell(row: row2, col: col2) else { return false }
+        
+        // Check walls based on relative positions
+        if row1 == row2 {
+            // Same row, check east/west walls
+            if col1 < col2 {
+                return cell1.pointee.eastWall == 1 && cell2.pointee.westWall == 1
+            } else {
+                return cell1.pointee.westWall == 1 && cell2.pointee.eastWall == 1
+            }
+        } else if col1 == col2 {
+            // Same column, check north/south walls
+            if row1 < row2 {
+                return cell1.pointee.southWall == 1 && cell2.pointee.northWall == 1
+            } else {
+                return cell1.pointee.northWall == 1 && cell2.pointee.southWall == 1
+            }
+        }
+        
+        // Not connected if not in the same row or column
+        return false
+    }
+              
+    
+    // use BFS to solve from top left (0, 0) to bottom right (width-1, height-1)
+    func solveBFS() {
+        // setup
+        let startRow = 0, startCol = 0
+        let targetRow = height - 1, targetCol = width - 1
+        
+        resetFillState()
+        
+        func index(_ r: Int, _ c: Int) -> Int { return r * width + c }
+        
+        // use a queue for BFS
+        var visited = Set<Int>()
+        var queue: [(Int, Int)] = [(startRow, startCol)]
+        visited.insert(index(startRow, startCol))
+        var parent = [Int: Int]() // To reconstruct path later
+        getCell(row: startRow, col: startCol)?.pointee.fillVisited = 1
+        
+        let directions = [(0, 1), (0, -1), (1, 0), (-1, 0)] // Right, Left, Down, Up
+        
+        // solve
+        // solutionPath will contain the shortest path from start to end
+        while !queue.isEmpty {
+            let (r, c) = queue.removeFirst()
+            if r == targetRow && c == targetCol {
+                break  // Found shortest path
+            }
+            
+            // var maxD = 0
+            for (dr, dc) in directions {
+                let nr = r + dr
+                let nc = c + dc
+                
+                if nr >= 0, nr < height, nc >= 0, nc < width,
+                   let nextCell = getCell(row: nr, col: nc),
+                   nextCell.pointee.fillVisited == 0 && isConnected(row1: r, col1: c, row2: nr, col2: nc) {
+                    // Mark as visited and add to queue
+                    nextCell.pointee.fillVisited = 1
+                    // add distance to visualize
+                    nextCell.pointee.dist = Int32(parent.count)
+                    nextCell.pointee.genVisited = 0
+                    // maxD = max(maxD, parent.count)
+                    // self.coordinator.uniforms.maxDist = Int32(maxD)
+                    visited.insert(index(nr, nc))
+                    queue.append((nr, nc))
+                    parent[index(nr, nc)] = index(r, c) // Track parent for path reconstruction
+                    Thread.sleep(forTimeInterval: 0.0001) // Sleep for animation effect
+                }
+            }
+        }
+        // for effect
+        Thread.sleep(forTimeInterval: 1.0)
+
+        // reconstruct shortest path
+        guard visited.contains(index(targetRow, targetCol)) else {
+            print("BFS: No path found to target (\(targetRow), \(targetCol)).")
+            return
+        }
+        
+        var solutionPath: [(Int, Int)] = []
+        var current = index(targetRow, targetCol)
+        while current != index(startRow, startCol) {
+            let r = current / width
+            let c = current % width
+            solutionPath.append((r, c))
+            current = parent[current]!
+        }
+        solutionPath.append((startRow, startCol))
+        solutionPath.reverse() // Reverse to get path from start to end
+        
+        // Mark the solution path in the maze
+        var dist = 0
+        for (r, c) in solutionPath {
+            guard let cell = getCell(row: r, col: c) else { continue }
+            cell.pointee.fillVisited = 1 // Mark as part of the solution path
+            cell.pointee.dist = Int32(dist)
+            cell.pointee.genVisited = 1
+            dist += 1
+            self.coordinator.uniforms.maxDist = Int32(dist)
+            Thread.sleep(forTimeInterval: 0.01) // Sleep for animation effect
+        }
+
+        // clear everything else, except the solution path
+        for r in 0..<height {
+            for c in 0..<width {
+                guard let cell = getCell(row: r, col: c) else { continue }
+                if !solutionPath.contains(where: { $0.0 == r && $0.1 == c }) {
+                    cell.pointee.fillVisited = 0
+                    cell.pointee.genVisited = 1
+                }
+            }
+        }
+    }
+
+    // use A* to solve from top left (0, 0) to bottom right (width-1, height-1)
+    func solveAStar() {
+        // setup
+        let startRow = 0, startCol = 0
+        let targetRow = height - 1, targetCol = width - 1
+
+        resetFillState()
+
+        func index(_ r: Int, _ c: Int) -> Int { return r * width + c }
+        func heuristic(r1: Int, c1: Int, r2: Int, c2: Int) -> Int {
+            return abs(r1 - r2) + abs(c1 - c2) // Manhattan distance
+        }
+
+        var openSet: [(fScore: Int, r: Int, c: Int)] = [] // For A*, openSet stores (fScore, row, col)
+        var cameFrom = [Int: Int]() // To reconstruct path
+        var gScore = [Int: Int]()   // Cost from start to current cell (actual distance)
+        
+        for r in 0..<height {
+            for c in 0..<width {
+                gScore[index(r,c)] = Int.max
+            }
+        }
+
+        let startIndex = index(startRow, startCol)
+        gScore[startIndex] = 0
+        openSet.append((fScore: heuristic(r1: startRow, c1: startCol, r2: targetRow, c2: targetCol), r: startRow, c: startCol))
+        
+        if let startCell = getCell(row: startRow, col: startCol) {
+            startCell.pointee.fillVisited = 1
+            startCell.pointee.genVisited = 0 // Mark black during search animation
+            startCell.pointee.dist = 0
+        }
+
+        let directions = [(0, 1), (0, -1), (1, 0), (-1, 0)] // Right, Left, Down, Up
+
+        // solve
+        while !openSet.isEmpty {
+            openSet.sort { $0.fScore < $1.fScore } // Simulate priority queue (extract min fScore)
+            let (_, r, c) = openSet.removeFirst()
+            let currentIndex = index(r, c)
+
+            if r == targetRow && c == targetCol {
+                reconstructAndMarkPath(startRow: startRow, startCol: startCol, targetRow: targetRow, targetCol: targetCol, cameFrom: cameFrom, current: currentIndex)
+                return
+            }
+            
+            if let currentCell = getCell(row: r, col: c) {
+                currentCell.pointee.fillVisited = 1 
+                currentCell.pointee.genVisited = 0 // Mark black during search animation
+                currentCell.pointee.dist = Int32(gScore[currentIndex] ?? 0)
+                self.coordinator.uniforms.maxDist = max(self.coordinator.uniforms.maxDist, Int32(gScore[currentIndex] ?? 0) + 1)
+            }
+
+            for (dr, dc) in directions {
+                let nr = r + dr
+                let nc = c + dc
+                let neighborIndex = index(nr, nc)
+
+                if nr >= 0, nr < height, nc >= 0, nc < width,
+                   isConnected(row1: r, col1: c, row2: nr, col2: nc) {
+                    
+                    let tentativeGScore = (gScore[currentIndex] ?? Int.max) + 1
+
+                    if tentativeGScore < (gScore[neighborIndex] ?? Int.max) {
+                        cameFrom[neighborIndex] = currentIndex
+                        gScore[neighborIndex] = tentativeGScore
+                        let fScore = tentativeGScore + heuristic(r1: nr, c1: nc, r2: targetRow, c2: targetCol)
+                        
+                        if let existingIdxInOpen = openSet.firstIndex(where: { $0.r == nr && $0.c == nc }) {
+                            if fScore < openSet[existingIdxInOpen].fScore {
+                                openSet[existingIdxInOpen] = (fScore: fScore, r: nr, c: nc)
+                            }
+                        } else {
+                            openSet.append((fScore: fScore, r: nr, c: nc))
+                        }
+                        
+                        if let neighborCell = getCell(row: nr, col: nc) {
+                            neighborCell.pointee.fillVisited = 1 
+                            neighborCell.pointee.genVisited = 0 // Mark black during search animation
+                            neighborCell.pointee.dist = Int32(tentativeGScore)
+                            self.coordinator.uniforms.maxDist = max(self.coordinator.uniforms.maxDist, Int32(tentativeGScore) + 1)
+                        }
+                        Thread.sleep(forTimeInterval: 0.0001) // Animation delay
+                    }
+                }
+            }
+        }
+        
+        print("A*: No path found to target (\(targetRow), \(targetCol)).")
+        // If no path is found, searched cells (marked black) will remain.
+    }
+
+    // use Dijkstra's to solve from top left (0, 0) to bottom right (width-1, height-1)
+    func solveDijkstra() {
+        // setup
+        let startRow = 0, startCol = 0
+        let targetRow = height - 1, targetCol = width - 1
+
+        resetFillState()
+
+        func index(_ r: Int, _ c: Int) -> Int { return r * width + c }
+
+        var priorityQueue: [(dist: Int, r: Int, c: Int)] = [] // For Dijkstra, PQ stores (distance, row, col)
+        var distances = [Int: Int]() // Distance from start to current cell
+        var cameFrom = [Int: Int]()  // To reconstruct path
+
+        for r in 0..<height {
+            for c in 0..<width {
+                distances[index(r,c)] = Int.max
+            }
+        }
+
+        let startIndex = index(startRow, startCol)
+        distances[startIndex] = 0
+        priorityQueue.append((dist: 0, r: startRow, c: startCol))
+        
+        if let startCell = getCell(row: startRow, col: startCol) {
+            startCell.pointee.fillVisited = 1
+            startCell.pointee.genVisited = 0 // Mark black during search animation
+            startCell.pointee.dist = 0
+        }
+
+        let directions = [(0, 1), (0, -1), (1, 0), (-1, 0)] // Right, Left, Down, Up
+
+        // solve
+        while !priorityQueue.isEmpty {
+            priorityQueue.sort { $0.dist < $1.dist } // Simulate priority queue (extract min distance)
+            let (dist, r, c) = priorityQueue.removeFirst()
+            let currentIndex = index(r, c)
+
+            // If we've already found a shorter path to this node, skip.
+            if dist > (distances[currentIndex] ?? Int.max) {
+                continue
+            }
+
+            if r == targetRow && c == targetCol {
+                reconstructAndMarkPath(startRow: startRow, startCol: startCol, targetRow: targetRow, targetCol: targetCol, cameFrom: cameFrom, current: currentIndex)
+                return
+            }
+            
+            if let currentCell = getCell(row: r, col: c) {
+                 currentCell.pointee.fillVisited = 1
+                 currentCell.pointee.genVisited = 0 // Mark black during search animation
+                 currentCell.pointee.dist = Int32(dist)
+                 self.coordinator.uniforms.maxDist = max(self.coordinator.uniforms.maxDist, Int32(dist) + 1)
+            }
+
+            for (dr, dc) in directions {
+                let nr = r + dr
+                let nc = c + dc
+                let neighborIndex = index(nr, nc)
+
+                if nr >= 0, nr < height, nc >= 0, nc < width,
+                   isConnected(row1: r, col1: c, row2: nr, col2: nc) {
+                    
+                    let newDist = dist + 1
+
+                    if newDist < (distances[neighborIndex] ?? Int.max) {
+                        distances[neighborIndex] = newDist
+                        cameFrom[neighborIndex] = currentIndex
+                        
+                        // Update priority queue: remove old entry if exists, then add new one.
+                        if let existingPQIndex = priorityQueue.firstIndex(where: { $0.r == nr && $0.c == nc }) {
+                           priorityQueue.remove(at: existingPQIndex) 
+                        }
+                        priorityQueue.append((dist: newDist, r: nr, c: nc))
+                        
+                        if let neighborCell = getCell(row: nr, col: nc) {
+                            neighborCell.pointee.fillVisited = 1 
+                            neighborCell.pointee.genVisited = 0 // Mark black during search animation
+                            neighborCell.pointee.dist = Int32(newDist)
+                            self.coordinator.uniforms.maxDist = max(self.coordinator.uniforms.maxDist, Int32(newDist) + 1)
+                        }
+                        Thread.sleep(forTimeInterval: 0.0001) // Animation delay
+                    }
+                }
+            }
+        }
+        
+        print("Dijkstra: No path found to target (\(targetRow), \(targetCol)).")
+        // If no path is found, searched cells (marked black) will remain.
+    }
+
+    // Helper function to reconstruct and mark the path
+    private func reconstructAndMarkPath(startRow: Int, startCol: Int, targetRow: Int, targetCol: Int, cameFrom: [Int: Int], current: Int) {
+        let cellsPtr = cellBuffer.contents().bindMemory(to: Cell.self, capacity: width * height)
+        func index(_ r: Int, _ c: Int) -> Int { return r * width + c }
+
+        var solutionPath: [(Int, Int)] = []
+        var pathCurrent = current
+        let startIndex = index(startRow, startCol)
+        
+        // Reconstruct path from target to start by following cameFrom links
+        while pathCurrent != startIndex {
+            let r_path = pathCurrent / width
+            let c_path = pathCurrent % width
+            solutionPath.append((r_path, c_path))
+            guard let parentNode = cameFrom[pathCurrent] else {
+                print("Error reconstructing path: cameFrom link broken at index \(pathCurrent).")
+                // If reconstruction fails, current visual state (searched cells) may persist.
+                return
+            }
+            pathCurrent = parentNode
+        }
+        solutionPath.append((startRow, startCol)) // Add the start node itself
+        solutionPath.reverse() // Reverse to get path from start to target
+        
+        // Brief pause before drawing the final path for visual effect
+        Thread.sleep(forTimeInterval: 0.5) 
+
+        // Mark the solution path cells for final display
+        var dist = 0
+        self.coordinator.uniforms.maxDist = 1 // Reset maxDist for path coloring
+        for (r_path, c_path) in solutionPath {
+            guard let cell = getCell(row: r_path, col: c_path) else { continue }
+            cell.pointee.fillVisited = 1 // Mark as part of the solution path
+            cell.pointee.genVisited = 1 // Ensure path cells are colored (not black)
+            cell.pointee.dist = Int32(dist)
+            dist += 1
+            self.coordinator.uniforms.maxDist = Int32(dist)
+            Thread.sleep(forTimeInterval: 0.01) // Animation effect for drawing path segments
+        }
+
+        // Clear fillVisited for all cells NOT on the solution path.
+        // This leaves searched cells (genVisited=0) black, and unsearched maze cells (genVisited=1) as default.
+        for r_clear in 0..<height {
+            for c_clear in 0..<width {
+                if !solutionPath.contains(where: { $0.0 == r_clear && $0.1 == c_clear }) { 
+                    let cellPtr = cellsPtr.advanced(by: index(r_clear, c_clear))
+                    cellPtr.pointee.fillVisited = 0
+                }
+            }
+        }
+
+        print("Path reconstruction complete. Path length: \(solutionPath.count)")
+    }
+
+    // MARK: Generation
     public func pauseGeneration() {
         pauseCondition.lock()
         if isGenerating && !isPaused {
@@ -593,7 +972,6 @@ class Maze {
         }
     }
 
-    // --- Utility and Helper Methods ---
     private func genSidewinderInternal() throws {
         for r in 0..<height {
             var currentRunStartCol = 0
@@ -650,6 +1028,7 @@ class Maze {
             queue.append((y, x))
             startCell.pointee.fillVisited = 1 // Mark as visited for BFS context
             startCell.pointee.dist = 0
+            startCell.pointee.genVisited = 1
             self.coordinator.uniforms.maxDist = 1
             
             while !queue.isEmpty {
@@ -678,6 +1057,7 @@ class Maze {
                     if canMove {
                         neighborCell.pointee.fillVisited = 1
                         neighborCell.pointee.dist = currentDist + 1
+                        neighborCell.pointee.genVisited = 1
                         queue.append((newRow, newCol))
                         Thread.sleep(forTimeInterval: self.BFS_SLEEP_INTERVAL) // Use defined constant
                     }
@@ -724,28 +1104,5 @@ class Maze {
             customAnimationDelays.removeValue(forKey: type)
             // print("Custom animation delay for \(type.rawValue) removed, will use default.")
         }
-    }
-    
-    // Enum to define maze generation algorithm types
-    public enum MazeTypes: String, CaseIterable, Identifiable {
-        case recursiveDFS = "Recursive DFS"
-        case kruskals = "Kruskal's"
-        case prims = "Prim's"
-        case aldousBroder = "Aldous-Broder"
-        case wilsons = "Wilson's"
-        case huntAndKill = "Hunt-and-Kill"
-        case sidewinder = "Sidewinder"
-        public var id: String { self.rawValue }
-
-        // Default animation delay for each algorithm type
-        var defaultAnimationDelay: TimeInterval {
-            switch self {
-            case .recursiveDFS, .kruskals, .sidewinder:
-                return 0.00001
-            case .prims, .aldousBroder, .wilsons, .huntAndKill:
-                return 0.0
-            }
-        }
-
     }
 }

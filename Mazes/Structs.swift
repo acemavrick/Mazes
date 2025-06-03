@@ -70,3 +70,38 @@ struct Cell {
     var genVisited: Int32 = 0
     var fillVisited: Int32 = 0
 }
+
+enum SolveTypes: String, CaseIterable, Identifiable {
+    case bfs = "BFS"
+    case astar = "A*"
+    case dijkstra = "Dijkstra"
+    public var id: String { self.rawValue }
+    
+    var defaultAnimationDelay: TimeInterval {
+        switch self {
+        default:
+            return 0.0
+        }
+    }
+}
+
+enum MazeTypes: String, CaseIterable, Identifiable {
+    case recursiveDFS = "Recursive DFS"
+    case kruskals = "Kruskal's"
+    case prims = "Prim's"
+    case aldousBroder = "Aldous-Broder"
+    case wilsons = "Wilson's"
+    case huntAndKill = "Hunt-and-Kill"
+    case sidewinder = "Sidewinder"
+    public var id: String { self.rawValue }
+    
+    // Default animation delay for each algorithm type
+    var defaultAnimationDelay: TimeInterval {
+        switch self {
+        case .recursiveDFS, .kruskals, .sidewinder:
+            return 0.00001
+        case .prims, .aldousBroder, .wilsons, .huntAndKill:
+            return 0.0
+        }
+    }
+}

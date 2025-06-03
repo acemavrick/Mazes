@@ -86,7 +86,7 @@ struct Controller: ViewRepresentable {
             _ = self.uniforms.setMazeDims(height: DEF_START_DIM, width: DEF_START_DIM)
         }
         
-        func generateMaze(type: Maze.MazeTypes, completion: @escaping (Bool) -> Void) {
+        func generateMaze(type: MazeTypes, completion: @escaping (Bool) -> Void) {
             guard let maze = self.maze else {
                 print("Coordinator: Maze object not initialized.")
                 completion(false)
@@ -107,6 +107,20 @@ struct Controller: ViewRepresentable {
 
         func stopMazeGeneration() {
             self.maze?.stopGeneration()
+        }
+        
+        // New method to be called by the Model to start solving
+        func solveMaze(using algo: SolveTypes) {
+            guard let maze = self.maze else {
+                print("Coordinator: Maze object not initialized, cannot solve.")
+                return
+            }
+            // Ensure maze is not currently being generated before attempting to solve
+            // The Model should ideally guard this, but an extra check here is fine.
+            // if model.generationState == .generating { print("Coordinator: Cannot solve while generating."); return }
+            
+            print("Coordinator: Telling Maze to solve using \(algo.rawValue).")
+            maze.start_solve(using: algo)
         }
         
         func handleMazeTap(at point: CGPoint, in size: CGSize) {

@@ -77,135 +77,204 @@ struct MazeView: View {
     }
 }
 
+// Helper View for Maze Algorithm Picker
+struct MazeAlgorithmPickerView: View {
+    @ObservedObject var model: Model
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(MazeTypes.allCases) { type in
+                Button(action: {
+                    if model.generationState == .idle {
+                        model.currentMazeAlgorithm = type
+                    }
+                }) {
+                    HStack {
+                        Text(type.rawValue)
+                            .foregroundColor(model.currentMazeAlgorithm == type ? .white : .primary)
+                        Spacer()
+                        if model.currentMazeAlgorithm == type {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.white)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity)
+                    .background(model.currentMazeAlgorithm == type ? Color.green : Color(NSColor.controlBackgroundColor))
+                    .cornerRadius(8)
+                    .shadow(color: Color.black.opacity(model.currentMazeAlgorithm == type ? 0.1 : 0.05), radius: model.currentMazeAlgorithm == type ? 3 : 1, x: 0, y: model.currentMazeAlgorithm == type ? 2 : 1)
+                }
+                .buttonStyle(.plain)
+                .disabled(model.generationState != .idle)
+            }
+        }
+    }
+}
+
+// Helper View for Solver Algorithm Picker
+struct SolverAlgorithmPickerView: View {
+    @ObservedObject var model: Model
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(SolveTypes.allCases) { type in
+                Button(action: {
+                    if model.generationState == .idle {
+                        model.currentSolveAlgorithm = type
+                    }
+                }) {
+                    HStack {
+                        Text(type.rawValue)
+                            .foregroundColor(model.currentSolveAlgorithm == type ? .white : .primary)
+                        Spacer()
+                        if model.currentSolveAlgorithm == type {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.white)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity)
+                    .background(model.currentSolveAlgorithm == type ? Color.green : Color(NSColor.controlBackgroundColor))
+                    .cornerRadius(8)
+                    .shadow(color: Color.black.opacity(model.currentSolveAlgorithm == type ? 0.1 : 0.05), radius: model.currentSolveAlgorithm == type ? 3 : 1, x: 0, y: model.currentSolveAlgorithm == type ? 2 : 1)
+                }
+                .buttonStyle(.plain)
+                .disabled(model.generationState != .idle)
+            }
+        }
+    }
+}
+
+// Helper View for Generation Controls
+struct GenerationControlsView: View {
+    @ObservedObject var model: Model
+
+    var body: some View {
+        switch model.generationState {
+        case .idle:
+            Button {
+                withAnimation {
+                    model.startMazeGeneration()
+                }
+            } label: {
+                Label("Generate New Maze", systemImage: "wand.and.sparkles")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .keyboardShortcut(.defaultAction)
+            .tint(Color.green)
+
+        case .generating:
+            VStack(spacing: 10) {
+                HStack {
+                    Button {
+                        model.pauseMazeGeneration()
+                    } label: {
+                        Label("Pause", systemImage: "pause.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .controlSize(.large)
+                    .tint(Color.green)
+
+                    Button {
+                        model.stopMazeGeneration()
+                    } label: {
+                        Label("Stop", systemImage: "stop.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .controlSize(.large)
+                    .tint(.red)
+                }
+                ProgressView("Generating Maze...")
+                    .progressViewStyle(.linear)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 5)
+            }
+        
+        case .paused:
+            VStack(spacing: 10) {
+                Text("Generation Paused")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 5)
+                HStack {
+                    Button {
+                        model.resumeMazeGeneration()
+                    } label: {
+                        Label("Resume", systemImage: "play.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .controlSize(.large)
+                    .tint(Color.green)
+
+                    Button {
+                        model.stopMazeGeneration()
+                    } label: {
+                        Label("Stop", systemImage: "stop.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .controlSize(.large)
+                    .tint(.red)
+                }
+            }
+        }
+    }
+}
+
 struct ControlsView: View {
     @ObservedObject var model: Model
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("Maze Configuration")
-                .font(.title2)
-                .fontWeight(.semibold)
-                .padding(.bottom, 8)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                // Maze Configuration Section
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Maze Configuration")
+                        .font(.title2)
+                        .fontWeight(.semibold)
 
-            // Maze Type Picker - Modernized
-            Text("Algorithm:")
-                .font(.headline)
-                .padding(.bottom, 2)
-
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Maze.MazeTypes.allCases) { type in
-                    Button(action: {
-                        if model.generationState == .idle {
-                            model.currentOption = type
-                        }
-                    }) {
-                        HStack {
-                            Text(type.rawValue)
-                                .foregroundColor(model.currentOption == type ? .white : .primary)
-                            Spacer()
-                            if model.currentOption == type {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.white)
-                            }
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .frame(maxWidth: .infinity)
-                        .background(model.currentOption == type ? Color.accentColor : Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(8)
-                        .shadow(color: Color.black.opacity(model.currentOption == type ? 0.1 : 0.05), radius: model.currentOption == type ? 3 : 1, x: 0, y: model.currentOption == type ? 2 : 1)
-                    }
-                    .buttonStyle(.plain) // Use .plain to allow full background customization
-                    .disabled(model.generationState != .idle)
-                }
-            }
-            .padding(.bottom, 10) // Add some space after the picker
-
-            // Conditional Controls based on generation state
-            switch model.generationState {
-            case .idle:
-                Button {
-                    withAnimation {
-                        model.startMazeGeneration() // Call the new method
-                    }
-                } label: {
-                    Label("Generate New Maze", systemImage: "wand.and.sparkles")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .keyboardShortcut(.defaultAction)
-
-            case .generating:
-                VStack(spacing: 10) {
-                    HStack {
-                        Button {
-                            model.pauseMazeGeneration()
-                        } label: {
-                            Label("Pause", systemImage: "pause.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .controlSize(.large)
-
-                        Button {
-                            model.stopMazeGeneration()
-                        } label: {
-                            Label("Stop", systemImage: "stop.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .controlSize(.large)
-                        .tint(.red) // Make stop button visually distinct
-                    }
-                    ProgressView("Generating Maze...")
-                        .progressViewStyle(.linear)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 5)
-                }
-            
-            case .paused:
-                VStack(spacing: 10) {
-                    Text("Generation Paused")
+                    Text("Algorithm:")
                         .font(.headline)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.vertical, 5)
-                    HStack {
-                        Button {
-                            model.resumeMazeGeneration()
-                        } label: {
-                            Label("Resume", systemImage: "play.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .controlSize(.large)
+                        .padding(.bottom, 2)
+                    
+                    MazeAlgorithmPickerView(model: model)
+                        .padding(.bottom, 10)
 
-                        Button {
-                            model.stopMazeGeneration()
-                        } label: {
-                            Label("Stop", systemImage: "stop.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .controlSize(.large)
-                        .tint(.red)
-                    }
+                    GenerationControlsView(model: model)
                 }
-            }
 
-            Divider()
-                .padding(.vertical, 10)
+                Divider()
+                    .padding(.vertical, 10)
 
-            // Placeholder for future controls (e.g., solver)
-            Group {
-                Text("Solver Options")
-                    .font(.headline)
-                Text("Pathfinding controls will appear here in a future update.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                // Solver Options Section
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Solver Options")
+                        .font(.headline)
+
+                    SolverAlgorithmPickerView(model: model)
+                        .padding(.bottom, 10)
+
+                    Button {
+                        model.startMazeSolving()
+                    } label: {
+                        Label("Solve Maze", systemImage: "figure.walk.motion")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .disabled(model.generationState != .idle)
+                    .tint(Color.green)
+                }
+                
+                Spacer()
             }
-            
-            Spacer() // Pushes controls to the top
+            .padding() // Apply padding to the content within the ScrollView
         }
-        .padding()
-        .background(.thinMaterial) // Modern translucent background for the control panel
-        .animation(.easeInOut(duration: 0.2), value: model.generationState) // Animate state changes smoothly
+        .background(.thinMaterial)
+        .animation(.easeInOut(duration: 0.2), value: model.generationState)
     }
 }
 

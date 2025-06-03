@@ -13,18 +13,30 @@ enum MazeGenerationState {
     case idle       // Not generating, ready to start
     case generating // Actively generating
     case paused     // Generation is paused
+    // Potentially: case solving // If solving becomes a longer process with its own states
 }
 
 class Model: ObservableObject {
     @Published var coordinator: Controller.Coordinator? = nil
-    @Published var currentOption: Maze.MazeTypes = .prims
+    @Published var currentMazeAlgorithm: MazeTypes = .prims // Renamed for clarity
+    @Published var currentSolveAlgorithm: SolveTypes = .bfs // Default solve algorithm
     @Published var generationState: MazeGenerationState = .idle
 
     // Handles tap gestures on the maze view
     public func handleMazeTap(at point: CGPoint, in size: CGSize) {
         // Only allow tap if not currently generating a maze
         if generationState != .generating {
-            coordinator?.handleMazeTap(at: point, in: size)
+            if currentSolveAlgorithm == .bfs {
+                // If current algorithm is BFS, perform BFS fill from tap
+                coordinator?.handleMazeTap(at: point, in: size)
+                print("Model: BFS fill initiated by tap at cell: (\(point.x), \(point.y)) in size (\(size.width), \(size.height)).")
+            } else {
+                // Tap functionality for other algorithms or general interaction (if any)
+                // coordinator?.handleMazeTap(at: point, in: size) // Keep if other tap interactions are needed.
+                print("Maze tapped at cell: (\(point.x), \(point.y)) in size (\(size.width), \(size.height)). Current algorithm is \(currentSolveAlgorithm.rawValue). Solving is button-triggered for this algorithm.")
+            }
+        } else {
+            print("Model: Maze tap ignored, generation in progress.")
         }
     }
 
@@ -36,22 +48,33 @@ class Model: ObservableObject {
         }
         
         generationState = .generating
-        print("Model: Starting maze generation for type \(currentOption.rawValue).")
+        print("Model: Starting maze generation for type \(currentMazeAlgorithm.rawValue).")
         
-        // The actual generation happens on a background thread within Maze.swift
-        // The coordinator will call Maze's generate method which now has a completion handler
-        coordinator?.generateMaze(type: currentOption, completion: { [weak self] success in
-            // This completion block is called on the main thread from Maze.swift
+        coordinator?.generateMaze(type: currentMazeAlgorithm, completion: { [weak self] success in
             guard let self = self else { return }
             
-            // If generation wasn't manually stopped and is still in a 'generating' state,
-            // it means it completed normally or via an internal error (not user stop).
-            // If it was stopped, the state would have been changed by stopMazeGeneration.
-            if self.generationState == .generating {
+            if self.generationState == .generating { // Ensure state wasn't changed by a quick stop
                  self.generationState = .idle
             }
             print("Model: Maze generation finished. Success: \(success). Final state: \(self.generationState)")
         })
+    }
+
+    // Initiates maze solving
+    public func startMazeSolving() {
+        guard generationState == .idle else {
+            print("Model: Cannot solve maze while generation is in progress or paused.")
+            return
+        }
+        guard coordinator?.maze != nil else {
+            print("Model: Maze is not available to solve.")
+            return
+        }
+        
+        print("Model: Starting maze solving using \(currentSolveAlgorithm.rawValue).")
+        // Consider adding a .solving state if feedback during solving is needed
+        coordinator?.solveMaze(using: currentSolveAlgorithm)
+        // After solving, it remains in .idle state unless solving becomes a longer process
     }
 
     // Pauses the ongoing maze generation
