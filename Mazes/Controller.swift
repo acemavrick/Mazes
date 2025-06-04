@@ -51,6 +51,9 @@ struct Controller: ViewRepresentable {
         view.delegate = context.coordinator
         view.framebufferOnly = false
         view.clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
+        #if os(iOS)
+        view.enableSetNeedsDisplay = false
+        #endif
     }
     
     // MARK: - Coordinator
@@ -132,27 +135,24 @@ struct Controller: ViewRepresentable {
             let mazeWidth = maze.getWidth()
             let mazeHeight = maze.getHeight()
             
+            #if os(iOS)
+            // On iOS, we need to use the ratio between the tap location and view size
+            // rather than applying display scale directly
+            let normalizedX = point.x / size.width
+            let normalizedY = point.y / size.height
+            
+            // Calculate cell position based on normalized coordinates
+            let col = Int(normalizedX * CGFloat(mazeWidth))
+            let row = Int(normalizedY * CGFloat(mazeHeight))
+            #else
+            // Original macOS calculation which works correctly
             let ds = CGFloat(self.displayScale)
             let physicalTapX = point.x * ds
             let physicalTapY = point.y * ds
-
-            // Calculate physical cell size, mirroring shader logic
-            // uniforms.resolution is already in physical pixels.
-            // mazeWidth/mazeHeight (local vars) are in cells.
-            guard mazeWidth > 0, mazeHeight > 0 else {
-                print("Error: Maze dimensions (cells) are zero.")
-                return
-            }
-            guard self.uniforms.resolution.x > 0, self.uniforms.resolution.y > 0 else {
-                print("Error: Uniforms resolution (physical pixels) is zero.")
-                return
-            }
-
             let cellWidth = CGFloat(self.uniforms.cellSize)
-            
-            // get the col and row from the tap
             let col = Int(physicalTapX / cellWidth)
             let row = Int(physicalTapY / cellWidth)
+            #endif
             
             // Ensure the tap is within bounds
             guard row >= 0, row < mazeHeight, col >= 0, col < mazeWidth else { 
@@ -160,15 +160,8 @@ struct Controller: ViewRepresentable {
                 return
             }
             
-            //            print("Filling from cell: (\(row), \(col))")
-            // maze.resetFillState()
             maze.bfsFill(fromx: col, fromy: row)
             print("Called bfsFill(fromx: \(col), fromy: \(row))")
-//             for _ in 0..<50 {
-//                 let x = Int.random(in: 0..<mazeHeight)
-//                 let y = Int.random(in: 0..<mazeWidth)
-//                 maze.bfsFill(fromx: x, fromy: y)
-//             }
         }
         
         func setupMetal() {
@@ -228,7 +221,13 @@ struct Controller: ViewRepresentable {
             let currentTime = CACurrentMediaTime()
             let deltaTime: Float = Float(currentTime - lastUpdateTime)
             lastUpdateTime = currentTime
+            
+            #if os(iOS)
+            uniforms.time += 1.0/Float(view.preferredFramesPerSecond)
+            #else
             uniforms.time += deltaTime
+            #endif
+
 
             guard let drawable        = view.currentDrawable,
                   let descriptor      = view.currentRenderPassDescriptor,
