@@ -272,23 +272,93 @@ struct SolverView: View {
                     .background(Color(UIColor.secondarySystemBackground))
                     .cornerRadius(8)
                 }
-                .disabled(model.generationState != .idle)
+                .disabled(model.generationState != .idle || model.solvingState != .idle || model.fillState != .idle)
             }
             
-            // Solve button
-            Button {
-                model.startMazeSolving()
-            } label: {
-                Text("Solve Maze")
-                    .fontWeight(.semibold)
-                    .frame(height: 44)
-                    .frame(maxWidth: .infinity)
-                    .background(model.generationState == .idle ? Color.accentColor : Color.gray)
-                    .foregroundColor(.white)
-                    .cornerRadius(12)
+            // Solve button and controls
+            switch model.solvingState {
+            case .idle:
+                Button {
+                    model.startMazeSolving()
+                } label: {
+                    Text("Solve Maze")
+                        .fontWeight(.semibold)
+                        .frame(height: 44)
+                        .frame(maxWidth: .infinity)
+                        .background(model.generationState == .idle && model.fillState == .idle ? Color.accentColor : Color.gray)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                }
+                .buttonStyle(.plain)
+                .disabled(model.generationState != .idle || model.fillState != .idle)
+
+            case .generating:
+                VStack(spacing: 10) {
+                    ProgressView("Solving Maze...")
+                        .progressViewStyle(.linear)
+                        .padding(.bottom, 4)
+                    
+                    HStack(spacing: 12) {
+                        Button {
+                            model.pauseMazeSolving()
+                        } label: {
+                            Label("Pause Solving", systemImage: "pause.fill")
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 44)
+                                .background(Color(UIColor.secondarySystemBackground))
+                                .foregroundColor(.primary)
+                                .cornerRadius(12)
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            model.stopMazeSolving()
+                        } label: {
+                            Label("Stop Solving", systemImage: "stop.fill")
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 44)
+                                .background(Color.red.opacity(0.8))
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            
+            case .paused:
+                VStack(spacing: 10) {
+                    Text("Solving Paused")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .padding(.bottom, 4)
+                    
+                    HStack(spacing: 12) {
+                        Button {
+                            model.resumeMazeSolving()
+                        } label: {
+                            Label("Resume Solving", systemImage: "play.fill")
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 44)
+                                .background(Color.accentColor)
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            model.stopMazeSolving()
+                        } label: {
+                            Label("Stop Solving", systemImage: "stop.fill")
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 44)
+                                .background(Color.red.opacity(0.8))
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
-            .buttonStyle(.plain)
-            .disabled(model.generationState != .idle)
         }
     }
 }

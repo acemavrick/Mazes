@@ -53,6 +53,14 @@ enum MazeGenerationError: Error {
     case stoppedByUser
 }
 
+// Custom errors for solving and filling
+enum MazeSolvingError: Error {
+    case stoppedByUser
+}
+enum MazeFillingError: Error {
+    case stoppedByUser
+}
+
 class Maze {
     // pointer to uniform buffer
     var coordinator : Controller.Coordinator
@@ -77,6 +85,20 @@ class Maze {
     private var customAnimationDelays: [MazeTypes: TimeInterval] = [:] // Stores user-set custom delays
     private var lastHuntRowForScan: Int = 0 // For Hunt-and-Kill optimization
     private var lastHuntColForScan: Int = 0 // For Hunt-and-Kill optimization
+
+    // --- Properties for Solving Control ---
+    private var isSolving: Bool = false
+    private var isPausedSolving: Bool = false
+    private var shouldStopSolving: Bool = false
+    private let solvingCondition = NSCondition()
+    private let solvingQueue = DispatchQueue(label: "com.mazes.solvingQueue", qos: .userInitiated)
+
+    // --- Properties for Filling Control (for bfsFill) ---
+    private var isFilling: Bool = false
+    private var isPausedFilling: Bool = false
+    private var shouldStopFilling: Bool = false
+    private let fillingCondition = NSCondition() // Can use a separate condition or reuse if careful
+    private let fillingQueue = DispatchQueue(label: "com.mazes.fillingQueue", qos: .userInitiated)
 
     // Initialize with device and dimensions
     init(device: MTLDevice, width: Int, height: Int, coordinator coord: Controller.Coordinator) {
@@ -128,21 +150,57 @@ class Maze {
     }
     
     // MARK: Solving
-    public func start_solve(using algo: SolveTypes) {
-        guard !isGenerating else {
-            print("Maze.solve: Cannot solve while generating.")
+    public func start_solve(using algo: SolveTypes, completion: @escaping (Bool) -> Void) {
+        guard !isGenerating, !isSolving, !isFilling else {
+            print("Maze.solve: Cannot solve while another operation is in progress.")
+            completion(false)
             return
         }
 
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in // Added weak self
-            guard let self = self else { return }
-            switch algo {
-            case .bfs:
-                solveBFS()
-            case .astar:
-                solveAStar()
-            case .dijkstra:
-                solveDijkstra()
+        isSolving = true
+        isPausedSolving = false
+        shouldStopSolving = false
+        coordinator.uniforms.maxDist = 1 // Reset for new solve visualization
+
+        solvingQueue.async { [weak self] in
+            guard let self = self else {
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+
+            var success = true
+            let startTime = CFAbsoluteTimeGetCurrent()
+            print("Maze.solve: Starting solve of type: \(algo.rawValue) on background thread.")
+            do {
+                self.resetFillState() // Ensure maze is clean before solving
+                switch algo {
+                case .bfs:
+                    try self.solveBFSInternal()
+                case .astar:
+                    try self.solveAStarInternal()
+                case .dijkstra:
+                    try self.solveDijkstraInternal()
+                }
+                print("Maze.solve: Solve completed for type: \(algo.rawValue).")
+            } catch MazeSolvingError.stoppedByUser {
+                print("Maze.solve: Solve stopped by user for type: \(algo.rawValue).")
+                success = false
+            } catch {
+                print("Maze.solve: An unexpected error occurred during solve: \(error)")
+                success = false
+            }
+
+            let timeElapsed = CFAbsoluteTimeGetCurrent() - startTime
+            print("Maze.solve: Finished type: \(algo.rawValue). Success: \(success). Time: \(String(format: "%.3f", timeElapsed))s.")
+
+            self.solvingCondition.lock()
+            self.isSolving = false
+            self.isPausedSolving = false
+            self.shouldStopSolving = false
+            self.solvingCondition.unlock()
+
+            DispatchQueue.main.async {
+                completion(success)
             }
         }
     }
@@ -176,6 +234,22 @@ class Maze {
     
     // use BFS to solve from top left (0, 0) to bottom right (width-1, height-1)
     func solveBFS() {
+        // This public func should ideally handle the try-catch or be marked throws
+        // For now, assuming it's called from a context that handles throws (like start_solve)
+        // or it's an old signature not meant to be directly used with new pausable system.
+        // To fix lint, we'd need to mark it throws or wrap call.
+        // Given its call to solveBFSInternal(), it must handle or propagate.
+        // Let's make it simple and assume it's not the primary entry point for pausable solving.
+        // If it *is* used, it won't have pause/stop. For proper pause/stop, use start_solve.
+        // To satisfy linter for now without changing broader logic of how start_solve works:
+        do {
+            try solveBFSInternal()
+        } catch {
+            print("Error in solveBFS: \(error)")
+        }
+    }
+    
+    private func solveBFSInternal() throws {
         // setup
         let startRow = 0, startCol = 0
         let targetRow = height - 1, targetCol = width - 1
@@ -196,12 +270,13 @@ class Maze {
         // solve
         // solutionPath will contain the shortest path from start to end
         while !queue.isEmpty {
+            try checkPauseAndStopSolvingFlags() // Check for pause/stop
             let (r, c) = queue.removeFirst()
             if r == targetRow && c == targetCol {
                 break  // Found shortest path
             }
             
-            // var maxD = 0
+             var maxD = 0
             for (dr, dc) in directions {
                 let nr = r + dr
                 let nc = c + dc
@@ -211,11 +286,14 @@ class Maze {
                    nextCell.pointee.fillVisited == 0 && isConnected(row1: r, col1: c, row2: nr, col2: nc) {
                     // Mark as visited and add to queue
                     nextCell.pointee.fillVisited = 1
+                    
                     // add distance to visualize
                     nextCell.pointee.dist = Int32(parent.count)
-                    nextCell.pointee.genVisited = 0
-                    // maxD = max(maxD, parent.count)
-                    // self.coordinator.uniforms.maxDist = Int32(maxD)
+                    nextCell.pointee.genVisited = 1
+                    
+                     maxD = max(maxD, parent.count)
+                     self.coordinator.uniforms.maxDist = Int32(maxD)
+                    
                     visited.insert(index(nr, nc))
                     queue.append((nr, nc))
                     parent[index(nr, nc)] = index(r, c) // Track parent for path reconstruction
@@ -225,6 +303,7 @@ class Maze {
         }
         // for effect
         Thread.sleep(forTimeInterval: 1.0)
+        try checkPauseAndStopSolvingFlags() // Check before final path drawing
 
         // reconstruct shortest path
         guard visited.contains(index(targetRow, targetCol)) else {
@@ -245,14 +324,16 @@ class Maze {
         
         // Mark the solution path in the maze
         var dist = 0
+        self.coordinator.uniforms.maxDist = 1 // Reset maxDist for path coloring
         for (r, c) in solutionPath {
+            do { try checkPauseAndStopSolvingFlags() } catch { return } // Allow stop during path drawing
             guard let cell = getCell(row: r, col: c) else { continue }
             cell.pointee.fillVisited = 1 // Mark as part of the solution path
             cell.pointee.dist = Int32(dist)
-            cell.pointee.genVisited = 1
+            cell.pointee.genVisited = 0
             dist += 1
             self.coordinator.uniforms.maxDist = Int32(dist)
-            Thread.sleep(forTimeInterval: 0.01) // Sleep for animation effect
+            Thread.sleep(forTimeInterval: 0.01) // Animation effect for drawing path segments
         }
 
         // clear everything else, except the solution path
@@ -269,6 +350,15 @@ class Maze {
 
     // use A* to solve from top left (0, 0) to bottom right (width-1, height-1)
     func solveAStar() {
+        // Similar to solveBFS, handling throw for linter
+        do {
+            try solveAStarInternal()
+        } catch {
+            print("Error in solveAStar: \(error)")
+        }
+    }
+    
+    private func solveAStarInternal() throws {
         // setup
         let startRow = 0, startCol = 0
         let targetRow = height - 1, targetCol = width - 1
@@ -296,7 +386,7 @@ class Maze {
         
         if let startCell = getCell(row: startRow, col: startCol) {
             startCell.pointee.fillVisited = 1
-            startCell.pointee.genVisited = 0 // Mark black during search animation
+            startCell.pointee.genVisited = 1
             startCell.pointee.dist = 0
         }
 
@@ -304,18 +394,19 @@ class Maze {
 
         // solve
         while !openSet.isEmpty {
+            try checkPauseAndStopSolvingFlags() // Check for pause/stop
             openSet.sort { $0.fScore < $1.fScore } // Simulate priority queue (extract min fScore)
             let (_, r, c) = openSet.removeFirst()
             let currentIndex = index(r, c)
 
             if r == targetRow && c == targetCol {
-                reconstructAndMarkPath(startRow: startRow, startCol: startCol, targetRow: targetRow, targetCol: targetCol, cameFrom: cameFrom, current: currentIndex)
+                try reconstructAndMarkPath(startRow: startRow, startCol: startCol, targetRow: targetRow, targetCol: targetCol, cameFrom: cameFrom, current: currentIndex)
                 return
             }
             
             if let currentCell = getCell(row: r, col: c) {
                 currentCell.pointee.fillVisited = 1 
-                currentCell.pointee.genVisited = 0 // Mark black during search animation
+                currentCell.pointee.genVisited = 1
                 currentCell.pointee.dist = Int32(gScore[currentIndex] ?? 0)
                 self.coordinator.uniforms.maxDist = max(self.coordinator.uniforms.maxDist, Int32(gScore[currentIndex] ?? 0) + 1)
             }
@@ -345,7 +436,7 @@ class Maze {
                         
                         if let neighborCell = getCell(row: nr, col: nc) {
                             neighborCell.pointee.fillVisited = 1 
-                            neighborCell.pointee.genVisited = 0 // Mark black during search animation
+                            neighborCell.pointee.genVisited = 1
                             neighborCell.pointee.dist = Int32(tentativeGScore)
                             self.coordinator.uniforms.maxDist = max(self.coordinator.uniforms.maxDist, Int32(tentativeGScore) + 1)
                         }
@@ -361,6 +452,15 @@ class Maze {
 
     // use Dijkstra's to solve from top left (0, 0) to bottom right (width-1, height-1)
     func solveDijkstra() {
+        // Similar to solveBFS, handling throw for linter
+        do {
+            try solveDijkstraInternal()
+        } catch {
+            print("Error in solveDijkstra: \(error)")
+        }
+    }
+    
+    private func solveDijkstraInternal() throws {
         // setup
         let startRow = 0, startCol = 0
         let targetRow = height - 1, targetCol = width - 1
@@ -393,6 +493,7 @@ class Maze {
 
         // solve
         while !priorityQueue.isEmpty {
+            try checkPauseAndStopSolvingFlags() // Check for pause/stop
             priorityQueue.sort { $0.dist < $1.dist } // Simulate priority queue (extract min distance)
             let (dist, r, c) = priorityQueue.removeFirst()
             let currentIndex = index(r, c)
@@ -403,13 +504,13 @@ class Maze {
             }
 
             if r == targetRow && c == targetCol {
-                reconstructAndMarkPath(startRow: startRow, startCol: startCol, targetRow: targetRow, targetCol: targetCol, cameFrom: cameFrom, current: currentIndex)
+                try reconstructAndMarkPath(startRow: startRow, startCol: startCol, targetRow: targetRow, targetCol: targetCol, cameFrom: cameFrom, current: currentIndex)
                 return
             }
             
             if let currentCell = getCell(row: r, col: c) {
                  currentCell.pointee.fillVisited = 1
-                 currentCell.pointee.genVisited = 0 // Mark black during search animation
+                 currentCell.pointee.genVisited = 1
                  currentCell.pointee.dist = Int32(dist)
                  self.coordinator.uniforms.maxDist = max(self.coordinator.uniforms.maxDist, Int32(dist) + 1)
             }
@@ -436,7 +537,7 @@ class Maze {
                         
                         if let neighborCell = getCell(row: nr, col: nc) {
                             neighborCell.pointee.fillVisited = 1 
-                            neighborCell.pointee.genVisited = 0 // Mark black during search animation
+                            neighborCell.pointee.genVisited = 1
                             neighborCell.pointee.dist = Int32(newDist)
                             self.coordinator.uniforms.maxDist = max(self.coordinator.uniforms.maxDist, Int32(newDist) + 1)
                         }
@@ -451,7 +552,9 @@ class Maze {
     }
 
     // Helper function to reconstruct and mark the path
-    private func reconstructAndMarkPath(startRow: Int, startCol: Int, targetRow: Int, targetCol: Int, cameFrom: [Int: Int], current: Int) {
+    private func reconstructAndMarkPath(startRow: Int, startCol: Int, targetRow: Int, targetCol: Int, cameFrom: [Int: Int], current: Int) throws {
+        // This function is called by solvers. If solvers are pausable, this might need checks too,
+        // or be short enough not to. Given it has sleeps, checks are good.
         let cellsPtr = cellBuffer.contents().bindMemory(to: Cell.self, capacity: width * height)
         func index(_ r: Int, _ c: Int) -> Int { return r * width + c }
 
@@ -476,14 +579,16 @@ class Maze {
         
         // Brief pause before drawing the final path for visual effect
         Thread.sleep(forTimeInterval: 0.5) 
+        try checkPauseAndStopSolvingFlags() // Propagate throw
 
         // Mark the solution path cells for final display
         var dist = 0
         self.coordinator.uniforms.maxDist = 1 // Reset maxDist for path coloring
         for (r_path, c_path) in solutionPath {
+            try checkPauseAndStopSolvingFlags() // Propagate throw
             guard let cell = getCell(row: r_path, col: c_path) else { continue }
             cell.pointee.fillVisited = 1 // Mark as part of the solution path
-            cell.pointee.genVisited = 1 // Ensure path cells are colored (not black)
+            cell.pointee.genVisited = 0
             cell.pointee.dist = Int32(dist)
             dist += 1
             self.coordinator.uniforms.maxDist = Int32(dist)
@@ -556,6 +661,100 @@ class Maze {
         Thread.sleep(forTimeInterval: MIN_SLEEP_INTERVAL)
     }
     
+    // --- Solving Control Methods ---
+    public func pauseSolving() {
+        solvingCondition.lock()
+        if isSolving && !isPausedSolving {
+            isPausedSolving = true
+            print("Maze solving paused.")
+        }
+        solvingCondition.unlock()
+    }
+
+    public func resumeSolving() {
+        solvingCondition.lock()
+        if isSolving && isPausedSolving {
+            isPausedSolving = false
+            solvingCondition.signal()
+            print("Maze solving resumed.")
+        }
+        solvingCondition.unlock()
+    }
+
+    public func stopSolving() {
+        solvingCondition.lock()
+        if isSolving {
+            shouldStopSolving = true
+            if isPausedSolving {
+                isPausedSolving = false
+                solvingCondition.signal()
+            }
+            print("Maze solving stop requested.")
+        }
+        solvingCondition.unlock()
+    }
+    
+    private func checkPauseAndStopSolvingFlags() throws {
+        solvingCondition.lock()
+        while isPausedSolving && !shouldStopSolving {
+            solvingCondition.wait()
+        }
+        let stopRequested = shouldStopSolving
+        solvingCondition.unlock()
+
+        if stopRequested {
+            throw MazeSolvingError.stoppedByUser
+        }
+        Thread.sleep(forTimeInterval: MIN_SLEEP_INTERVAL)
+    }
+
+    // --- Filling Control Methods (for bfsFill) ---
+    public func pauseFilling() {
+        fillingCondition.lock()
+        if isFilling && !isPausedFilling {
+            isPausedFilling = true
+            print("Maze filling paused.")
+        }
+        fillingCondition.unlock()
+    }
+
+    public func resumeFilling() {
+        fillingCondition.lock()
+        if isFilling && isPausedFilling {
+            isPausedFilling = false
+            fillingCondition.signal()
+            print("Maze filling resumed.")
+        }
+        fillingCondition.unlock()
+    }
+
+    public func stopFilling() {
+        fillingCondition.lock()
+        if isFilling {
+            shouldStopFilling = true
+            if isPausedFilling {
+                isPausedFilling = false
+                fillingCondition.signal()
+            }
+            print("Maze filling stop requested.")
+        }
+        fillingCondition.unlock()
+    }
+
+    private func checkPauseAndStopFillingFlags() throws {
+        fillingCondition.lock()
+        while isPausedFilling && !shouldStopFilling {
+            fillingCondition.wait()
+        }
+        let stopRequested = shouldStopFilling
+        fillingCondition.unlock()
+
+        if stopRequested {
+            throw MazeFillingError.stoppedByUser
+        }
+        Thread.sleep(forTimeInterval: MIN_SLEEP_INTERVAL)
+    }
+
     // --- Main Generation Method ---
     public func generate(type: MazeTypes, completion: @escaping (Bool) -> Void) {
         guard !isGenerating else {
@@ -1012,56 +1211,110 @@ class Maze {
 
 
     func bfsFill(fromx x: Int, fromy y: Int) {
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in // Added weak self
-            guard let self = self else { return }
+        bfsFill(fromx: x, fromy: y, completion: { _ in }) // Keep old signature for now if used elsewhere, or update all calls
+    }
 
-//             print("BFS Fill from (\(x), \(y))")
-            guard x >= 0, x < self.width, y >= 0, y < self.height,
-                  let startCell = self.getCell(row: y, col: x) else {
+    func bfsFill(fromx x: Int, fromy y: Int, completion: @escaping (Bool) -> Void) {
+        guard !isGenerating, !isSolving, !isFilling else {
+            print("Maze.bfsFill: Cannot fill while another operation is in progress.")
+            completion(false)
+            return
+        }
+        
+        guard x >= 0, x < self.width, y >= 0, y < self.height,
+              let _ = self.getCell(row: y, col: x) else {
+            print("Maze.bfsFill: Start coordinates out of bounds or cell not found.")
+            completion(false)
+            return
+        }
+
+        isFilling = true
+        isPausedFilling = false
+        shouldStopFilling = false
+        coordinator.uniforms.maxDist = 1 // Reset for new fill visualization
+
+        fillingQueue.async { [weak self] in
+            guard let self = self else {
+                DispatchQueue.main.async { completion(false) }
                 return
             }
-            
-            // Reset fill state for this specific BFS operation
-            self.resetFillState() 
-            
-            var queue: [(row: Int, col: Int)] = []
-            queue.append((y, x))
-            startCell.pointee.fillVisited = 1 // Mark as visited for BFS context
-            startCell.pointee.dist = 0
-            startCell.pointee.genVisited = 1
-            self.coordinator.uniforms.maxDist = 1
-            
-            while !queue.isEmpty {
-                let current = queue.removeFirst()
-                let currentCell = self.getCell(row: current.row, col: current.col)!
-                let currentDist = currentCell.pointee.dist
-                self.coordinator.uniforms.maxDist = max(self.coordinator.uniforms.maxDist, currentDist+1)
+
+            var success = true
+            let startTime = CFAbsoluteTimeGetCurrent()
+            print("Maze.bfsFill: Starting fill from (\(x),\(y)) on background thread.")
+
+            do {
+                self.resetFillState() // Reset state for this specific BFS
                 
-                let directions = [(-1, 0), (0, 1), (1, 0), (0, -1)]
-                for (dx, dy) in directions {
-                    let newRow = current.row + dy
-                    let newCol = current.col + dx
+                var queue: [(row: Int, col: Int)] = []
+                queue.append((y, x))
+                
+                if let startCell = self.getCell(row: y, col: x) {
+                    startCell.pointee.fillVisited = 1
+                    startCell.pointee.dist = 0
+                    startCell.pointee.genVisited = 1 // Ensure it's drawn correctly if it was cleared
+                } else {
+                    throw MazeFillingError.stoppedByUser // Or some other error
+                }
+
+
+                while !queue.isEmpty {
+                    try self.checkPauseAndStopFillingFlags()
+                    let current = queue.removeFirst()
                     
-                    guard newRow >= 0, newRow < self.width, newCol >= 0, newCol < self.height,
-                          let neighborCell = self.getCell(row: newRow, col: newCol),
-                          neighborCell.pointee.dist < 0 else { // dist < 0 means not yet visited in this BFS pass
-                        continue
-                    }
-                    
-                    var canMove = false
-                    if dy == -1 && currentCell.pointee.northWall == 1 { canMove = true }
-                    else if dy == 1 && currentCell.pointee.southWall == 1 { canMove = true }
-                    else if dx == -1 && currentCell.pointee.westWall == 1 { canMove = true }
-                    else if dx == 1 && currentCell.pointee.eastWall == 1 { canMove = true }
-                    
-                    if canMove {
-                        neighborCell.pointee.fillVisited = 1
-                        neighborCell.pointee.dist = currentDist + 1
-                        neighborCell.pointee.genVisited = 1
-                        queue.append((newRow, newCol))
-                        Thread.sleep(forTimeInterval: self.BFS_SLEEP_INTERVAL) // Use defined constant
+                    guard let currentCell = self.getCell(row: current.row, col: current.col) else { continue }
+                    let currentDist = currentCell.pointee.dist
+                    self.coordinator.uniforms.maxDist = max(self.coordinator.uniforms.maxDist, currentDist + 1)
+
+                    let directions = [(-1, 0), (0, 1), (1, 0), (0, -1)] // N, E, S, W relative to (row, col)
+                    for (dr, dc) in directions { // dr is change in row, dc is change in col
+                        let newRow = current.row + dr
+                        let newCol = current.col + dc
+
+                        guard newRow >= 0, newRow < self.height, newCol >= 0, newCol < self.width, // Corrected bounds check: height for rows, width for cols
+                              let neighborCell = self.getCell(row: newRow, col: newCol),
+                              neighborCell.pointee.dist < 0 else {
+                            continue
+                        }
+
+                        var canMove = false
+                        // Wall checks: currentCell.northWall == 1 means NO wall to the north
+                        if dr == -1 && currentCell.pointee.northWall == 1 { canMove = true } // Moving North
+                        else if dr == 1 && currentCell.pointee.southWall == 1 { canMove = true } // Moving South
+                        else if dc == -1 && currentCell.pointee.westWall == 1 { canMove = true }  // Moving West
+                        else if dc == 1 && currentCell.pointee.eastWall == 1 { canMove = true }  // Moving East
+                        
+                        if canMove {
+                            neighborCell.pointee.fillVisited = 1
+                            neighborCell.pointee.dist = currentDist + 1
+                            neighborCell.pointee.genVisited = 1
+                            queue.append((newRow, newCol))
+                            if self.BFS_SLEEP_INTERVAL > 0 { // Only sleep if interval is positive
+                                Thread.sleep(forTimeInterval: self.BFS_SLEEP_INTERVAL)
+                            }
+                        }
                     }
                 }
+                 print("Maze.bfsFill: Fill completed from (\(x),\(y)).")
+            } catch MazeFillingError.stoppedByUser {
+                print("Maze.bfsFill: Fill stopped by user from (\(x),\(y)).")
+                success = false
+            } catch {
+                print("Maze.bfsFill: An unexpected error occurred during fill: \(error)")
+                success = false
+            }
+
+            let timeElapsed = CFAbsoluteTimeGetCurrent() - startTime
+            print("Maze.bfsFill: Finished fill from (\(x),\(y)). Success: \(success). Time: \(String(format: "%.3f", timeElapsed))s.")
+
+            self.fillingCondition.lock()
+            self.isFilling = false
+            self.isPausedFilling = false
+            self.shouldStopFilling = false
+            self.fillingCondition.unlock()
+
+            DispatchQueue.main.async {
+                completion(success)
             }
         }
     }

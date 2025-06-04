@@ -9,7 +9,7 @@
 using namespace metal;
 
 // Default colors
-#define DEFAULT_COLOR float4(0.95, 0.95, 0.95, 1.0)  // Light gray for unvisited cells
+#define DEFAULT_COLOR float4(0.55, 0.55, 0.55, 1.0)  // Light gray for unvisited cells
 #define TRANSPARENT float4(0.0)
 
 // current time (seconds) and viewport size (pixels)
@@ -98,7 +98,7 @@ fragment float4 color_fragment(float4 coord [[position]],
     // Calculate normalized distance (0 to 1) for color mapping using step functions
     const float maxDist = uniforms.maxDist;
     float dist = float(cell.dist);
-    float normalizedDist = fract(dist / maxDist) * step(dist, maxDist*5);
+    float normalizedDist = fract(dist / maxDist);
     
     // Get color from gradient
     float3 color = getColorForDistance(normalizedDist);
@@ -155,7 +155,7 @@ fragment float4 border_fragment(float4 coord [[position]],
     
     float4 oobColor = DEFAULT_COLOR;
     float color = 1.0;
-    float thickness = max(uniforms.cellSize/20, 1.0);
+    float thickness = max(uniforms.cellSize/20, 0.6);
     float mthickness = uniforms.cellSize - thickness;
 
     // [dir] wall missing & [x|y] ≤ thickness ? zero

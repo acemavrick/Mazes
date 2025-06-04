@@ -196,10 +196,6 @@ struct GenerationControlsView: View {
         
         case .paused:
             VStack(spacing: 10) {
-                Text("Generation Paused")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 5)
                 HStack {
                     Button {
                         model.resumeMazeGeneration()
@@ -219,6 +215,10 @@ struct GenerationControlsView: View {
                     .controlSize(.large)
                     .tint(.red)
                 }
+                Text("Generation Paused")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 5)
             }
         }
     }
@@ -257,16 +257,74 @@ struct ControlsView: View {
                     SolverAlgorithmPickerView(model: model)
                         .padding(.bottom, 10)
 
-                    Button {
-                        model.startMazeSolving()
-                    } label: {
-                        Label("Solve Maze", systemImage: "figure.walk.motion")
-                            .frame(maxWidth: .infinity)
+                    // Dynamic Solver Controls based on model.solvingState
+                    switch model.solvingState {
+                    case .idle:
+                        Button {
+                            model.startMazeSolving()
+                        } label: {
+                            Label("Solve Maze", systemImage: "figure.walk.motion")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent) // Changed to borderedProminent for consistency
+                        .controlSize(.large)
+                        .disabled(model.generationState != .idle || model.fillState != .idle) // Disable if generating or filling
+                        .tint(Color.green)
+                    
+                    case .generating: // Actively solving
+                        VStack(spacing: 10) {
+                            HStack {
+                                Button {
+                                    model.pauseMazeSolving()
+                                } label: {
+                                    Label("Pause Solving", systemImage: "pause.fill")
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .controlSize(.large)
+                                .tint(Color.orange) // Use orange for pause
+
+                                Button {
+                                    model.stopMazeSolving()
+                                } label: {
+                                    Label("Stop Solving", systemImage: "stop.fill")
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .controlSize(.large)
+                                .tint(.red)
+                            }
+                            ProgressView("Solving Maze...")
+                                .progressViewStyle(.linear)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 5)
+                        }
+
+                    case .paused: // Solving is paused
+                        VStack(spacing: 10) {
+                            HStack {
+                                Button {
+                                    model.resumeMazeSolving()
+                                } label: {
+                                    Label("Resume Solving", systemImage: "play.fill")
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .controlSize(.large)
+                                .tint(Color.green)
+
+                                Button {
+                                    model.stopMazeSolving()
+                                } label: {
+                                    Label("Stop Solving", systemImage: "stop.fill")
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .controlSize(.large)
+                                .tint(.red)
+                            }
+                            Text("Solving Paused")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.vertical, 5)
+                        }
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
-                    .disabled(model.generationState != .idle)
-                    .tint(Color.green)
                 }
                 
                 Spacer()
@@ -275,6 +333,7 @@ struct ControlsView: View {
         }
         .background(.thinMaterial)
         .animation(.easeInOut(duration: 0.2), value: model.generationState)
+        .animation(.easeInOut(duration: 0.2), value: model.solvingState) // Add animation for solvingState changes
     }
 }
 

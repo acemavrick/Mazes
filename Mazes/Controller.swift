@@ -114,8 +114,14 @@ struct Controller: ViewRepresentable {
         
         // New method to be called by the Model to start solving
         func solveMaze(using algo: SolveTypes) {
+            solveMaze(using: algo, completion: { _ in }) // Call new one with dummy completion
+        }
+
+        // Updated method to be called by the Model to start solving with completion
+        func solveMaze(using algo: SolveTypes, completion: @escaping (Bool) -> Void) {
             guard let maze = self.maze else {
                 print("Coordinator: Maze object not initialized, cannot solve.")
+                completion(false)
                 return
             }
             // Ensure maze is not currently being generated before attempting to solve
@@ -123,45 +129,85 @@ struct Controller: ViewRepresentable {
             // if model.generationState == .generating { print("Coordinator: Cannot solve while generating."); return }
             
             print("Coordinator: Telling Maze to solve using \(algo.rawValue).")
-            maze.start_solve(using: algo)
+            maze.start_solve(using: algo, completion: completion)
         }
         
         func handleMazeTap(at point: CGPoint, in size: CGSize) {
+            // This method will likely be deprecated in favor of startBfsFill with completion
+            // For now, call startBfsFill with a dummy completion if this is still used.
+            startBfsFill(at: point, in: size, completion: { success in
+                print("Legacy handleMazeTap to bfsFill completed: \(success)")
+            })
+        }
+
+        // New method for initiating bfsFill with completion handler
+        func startBfsFill(at point: CGPoint, in size: CGSize, completion: @escaping (Bool) -> Void) {
             guard let maze = self.maze else {
-                print("Error: Maze object not initialized.")
+                print("Coordinator: Maze object not initialized for bfsFill.")
+                completion(false)
                 return
             }
             
             let mazeWidth = maze.getWidth()
             let mazeHeight = maze.getHeight()
             
+            let col: Int
+            let row: Int
+            
             #if os(iOS)
-            // On iOS, we need to use the ratio between the tap location and view size
-            // rather than applying display scale directly
             let normalizedX = point.x / size.width
             let normalizedY = point.y / size.height
-            
-            // Calculate cell position based on normalized coordinates
-            let col = Int(normalizedX * CGFloat(mazeWidth))
-            let row = Int(normalizedY * CGFloat(mazeHeight))
-            #else
-            // Original macOS calculation which works correctly
+            col = Int(normalizedX * CGFloat(mazeWidth))
+            row = Int(normalizedY * CGFloat(mazeHeight))
+            #else // macOS
             let ds = CGFloat(self.displayScale)
             let physicalTapX = point.x * ds
             let physicalTapY = point.y * ds
-            let cellWidth = CGFloat(self.uniforms.cellSize)
-            let col = Int(physicalTapX / cellWidth)
-            let row = Int(physicalTapY / cellWidth)
+            let cellWidthValue = CGFloat(self.uniforms.cellSize)
+            // Ensure cellWidth is not zero to prevent division by zero
+            guard cellWidthValue > 0 else {
+                print("Coordinator: Cell width is zero, cannot calculate tap position for bfsFill.")
+                completion(false)
+                return
+            }
+            col = Int(physicalTapX / cellWidthValue)
+            row = Int(physicalTapY / cellWidthValue)
             #endif
             
-            // Ensure the tap is within bounds
             guard row >= 0, row < mazeHeight, col >= 0, col < mazeWidth else { 
-                print("Tap out of bounds: (row: \(row), col: \(col)) - Maze (h: \(mazeHeight), w: \(mazeWidth))")
+                print("Coordinator: Tap out of bounds for bfsFill: (row: \(row), col: \(col)) - Maze (h: \(mazeHeight), w: \(mazeWidth))")
+                completion(false)
                 return
             }
             
-            maze.bfsFill(fromx: col, fromy: row)
-            print("Called bfsFill(fromx: \(col), fromy: \(row))")
+            print("Coordinator: Calling bfsFill(fromx: \(col), fromy: \(row)) with completion.")
+            maze.bfsFill(fromx: col, fromy: row, completion: completion)
+        }
+
+        // --- Solving Control Passthrough Methods ---
+        func pauseMazeSolving() {
+            self.maze?.pauseSolving()
+        }
+
+        func resumeMazeSolving() {
+            self.maze?.resumeSolving()
+        }
+
+        func stopMazeSolving() {
+            self.maze?.stopSolving()
+        }
+
+        // --- Filling Control Passthrough Methods ---
+        func pauseMazeFilling() {
+            self.maze?.pauseFilling()
+        }
+
+        func resumeMazeFilling() {
+            self.maze?.resumeFilling()
+        }
+
+        func stopMazeFilling() {
+            self.maze?.stopFilling()
         }
         
         func setupMetal() {
