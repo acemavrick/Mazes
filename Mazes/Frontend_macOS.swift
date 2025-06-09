@@ -338,10 +338,6 @@ struct ControlsView: View {
 }
 
 // Preview for Xcode Canvas
-#if DEBUG
-struct Frontend_macOS_Previews: PreviewProvider {
-    static var previews: some View {
+#Preview {
         Frontend_macOS()
-    }
 }
-#endif

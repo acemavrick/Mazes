@@ -4,26 +4,24 @@ struct Frontend_iOS: View {
     @StateObject private var model = Model() // Manages maze state and logic
 
     var body: some View {
-        NavigationView {
-            ZStack(alignment: .bottom) {
-                // Maze view occupies most of the screen
-                MazeView_iOS(model: model)
-                    .edgesIgnoringSafeArea([.horizontal])
-                
-                // Controls panel slides up from bottom
-                ControlsPanel_iOS(model: model)
-            }
-            .background(Color(UIColor.systemBackground).edgesIgnoringSafeArea(.all))
-            .navigationTitle("Mazes")
-            .navigationBarTitleDisplayMode(.inline)
+        // todo add an info/help button on the top right, navlink to an info page
+        VStack() {
+            // todo make the maze dimensions match the screen
+            MazeView_iOS(model: model)
+                .padding(5)
+
+            // todo make this panel collapsible
+            ControlsPanel_iOS(model: model)
         }
-        .navigationViewStyle(.stack)
+        .background(.mazeBG)
+        // we can do bottom bc never allow app to be upside down (no dynamic island)
+        .ignoresSafeArea(edges: .bottom)
     }
 }
 
 struct MazeView_iOS: View {
     @ObservedObject var model: Model
-    private let controllerPadding: CGFloat = 8 // Padding around the Metal view
+    private let controllerPadding: CGFloat = 5 // Padding around the Metal view
 
     var body: some View {
         GeometryReader { geometryProxy in
@@ -39,15 +37,16 @@ struct MazeView_iOS: View {
                 width: mazeDisplaySideLength - 2 * controllerPadding,
                 height: mazeDisplaySideLength - 2 * controllerPadding
             )
+            
+            // todo fix tap gesture to work without GeometryReader
 
             ZStack {
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Material.regularMaterial) // iOS material background
+                RoundedRectangle(cornerRadius: 0)
+                    .fill(Color.mazeBG)
                     .shadow(color: Color.black.opacity(0.15), radius: 10, x: 0, y: 5)
                 
-                if controllerRenderSize.width > 0 && controllerRenderSize.height > 0 {
                     Controller(model: model)
-                        .frame(width: controllerRenderSize.width, height: controllerRenderSize.height)
+                    .padding(6)
                         .gesture(
                             DragGesture(minimumDistance: 0)
                                 .onEnded { value in
@@ -57,27 +56,18 @@ struct MazeView_iOS: View {
                                     }
                                 }
                         )
-                } else {
-                    Text("View too small")
-                        .foregroundColor(.secondary)
-                }
             }
-            .frame(width: mazeDisplaySideLength, height: mazeDisplaySideLength)
-            .position(
-                x: geometryProxy.frame(in: .local).midX,
-                y: geometryProxy.frame(in: .local).midY - 60 // Shift up to make room for controls
-            )
         }
     }
 }
 
 // Combined control panel with generation on top and solving on bottom
+// todo fix to be on the left side when ipad is in landscape
 struct ControlsPanel_iOS: View {
     @ObservedObject var model: Model
     
     var body: some View {
         VStack(spacing: 0) {
-            // Generation section
             GenerationView(model: model)
             
             Divider()
@@ -88,7 +78,7 @@ struct ControlsPanel_iOS: View {
         }
         .padding(.horizontal)
         .padding(.top, 12)
-        .padding(.bottom, 16)
+        .padding(.bottom, 30)
         .background(
             RoundedRectangle(cornerRadius: 24)
                 .fill(Material.thin)
@@ -102,15 +92,12 @@ struct GenerationView: View {
     @ObservedObject var model: Model
     
     var body: some View {
-        VStack(spacing: 12) {
-            // Header and algorithm picker
+        VStack (alignment: .leading) {
+            // Algorithm Picker
             HStack {
-                Text("Generation")
-                    .font(.headline)
-                
-                Spacer()
-                
                 // Dropdown for algorithm selection
+                Text("Algorithm:")
+                    .font(.headline)
                 Menu {
                     ForEach(MazeTypes.allCases) { type in
                         Button(action: {
@@ -127,104 +114,99 @@ struct GenerationView: View {
                         }
                     }
                 } label: {
-                    HStack(spacing: 4) {
+                    HStack {
                         Text(model.currentMazeAlgorithm.rawValue)
                             .font(.subheadline)
                         Image(systemName: "chevron.down")
                             .font(.caption)
                     }
-                    .foregroundColor(.primary)
-                    .padding(.horizontal, 10)
+                    .foregroundStyle(.accent)
                     .padding(.vertical, 6)
-                    .background(Color(UIColor.secondarySystemBackground))
-                    .cornerRadius(8)
                 }
                 .disabled(model.generationState != .idle)
+                
+                switch model.generationState {
+                case .generating:
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                    Text("Generating...")
+                        .font(.footnote)
+                case .paused:
+                    Image(systemName: "pause.fill")
+                        .font(.footnote)
+                    Text("Paused")
+                        .font(.footnote)
+                default:
+                    EmptyView()
+                }
             }
-            
-            // Generation controls
+            .padding(.trailing)
             switch model.generationState {
             case .idle:
                 Button {
-                    withAnimation {
-                        model.startMazeGeneration()
-                    }
+                    model.startMazeGeneration()
                 } label: {
                     Text("Generate New Maze")
                         .fontWeight(.semibold)
-                        .frame(height: 44)
+                        .padding(.vertical, 10)
                         .frame(maxWidth: .infinity)
-                        .background(Color.accentColor)
-                        .foregroundColor(.white)
-                        .cornerRadius(12)
+                        .background(Color.accentLight)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
                 .buttonStyle(.plain)
 
             case .generating:
-                VStack(spacing: 10) {
-                    ProgressView("Generating...")
-                        .progressViewStyle(.linear)
-                        .padding(.bottom, 4)
-                    
                     HStack(spacing: 12) {
                         Button {
                             model.pauseMazeGeneration()
                         } label: {
-                            Label("Pause", systemImage: "pause.fill")
+                            Image(systemName: "pause.fill")
                                 .frame(maxWidth: .infinity)
-                                .frame(height: 44)
-                                .background(Color(UIColor.secondarySystemBackground))
-                                .foregroundColor(.primary)
-                                .cornerRadius(12)
+                                .padding(.vertical, 10)
+                                .background(.accentLight)
+                                .clipShape(Capsule())
                         }
                         .buttonStyle(.plain)
 
                         Button {
-                            model.stopMazeGeneration()
+                            withAnimation {
+                                model.stopMazeGeneration()
+                            }
                         } label: {
-                            Label("Stop", systemImage: "stop.fill")
+                            Image(systemName: "stop.fill")
                                 .frame(maxWidth: .infinity)
-                                .frame(height: 44)
+                                .padding(.vertical, 10)
                                 .background(Color.red.opacity(0.8))
-                                .foregroundColor(.white)
-                                .cornerRadius(12)
+                                .clipShape(Capsule())
                         }
                         .buttonStyle(.plain)
-                    }
                 }
             
             case .paused:
-                VStack(spacing: 10) {
-                    Text("Generation Paused")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .padding(.bottom, 4)
-                    
-                    HStack(spacing: 12) {
-                        Button {
-                            model.resumeMazeGeneration()
-                        } label: {
-                            Label("Resume", systemImage: "play.fill")
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 44)
-                                .background(Color.accentColor)
-                                .foregroundColor(.white)
-                                .cornerRadius(12)
-                        }
-                        .buttonStyle(.plain)
-
-                        Button {
-                            model.stopMazeGeneration()
-                        } label: {
-                            Label("Stop", systemImage: "stop.fill")
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 44)
-                                .background(Color.red.opacity(0.8))
-                                .foregroundColor(.white)
-                                .cornerRadius(12)
-                        }
-                        .buttonStyle(.plain)
+                HStack(spacing: 12) {
+                    Button {
+                        model.resumeMazeGeneration()
+                    } label: {
+                        Image(systemName: "play.fill")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(.accentLight)
+                            .clipShape(Capsule())
                     }
+                    .buttonStyle(.plain)
+                    
+                    Button {
+                        withAnimation {
+                            model.stopMazeGeneration()
+                        }
+                    } label: {
+                        Image(systemName: "stop.fill")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color.red.opacity(0.8))
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -235,13 +217,11 @@ struct SolverView: View {
     @ObservedObject var model: Model
     
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(alignment: .leading) {
             // Header and algorithm picker
             HStack {
-                Text("Solver")
+                Text("Solver: ")
                     .font(.headline)
-                
-                Spacer()
                 
                 // Dropdown for algorithm selection
                 Menu {
@@ -260,21 +240,32 @@ struct SolverView: View {
                         }
                     }
                 } label: {
-                    HStack(spacing: 4) {
+                    HStack {
                         Text(model.currentSolveAlgorithm.rawValue)
                             .font(.subheadline)
                         Image(systemName: "chevron.down")
                             .font(.caption)
                     }
-                    .foregroundColor(.primary)
-                    .padding(.horizontal, 10)
+                    .foregroundStyle(.accent)
                     .padding(.vertical, 6)
-                    .background(Color(UIColor.secondarySystemBackground))
-                    .cornerRadius(8)
                 }
                 .disabled(model.generationState != .idle || model.solvingState != .idle || model.fillState != .idle)
+                
+                switch model.solvingState {
+                case .generating:
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                    Text("Solving...")
+                        .font(.footnote)
+                case .paused:
+                    Image(systemName: "pause.fill")
+                        .font(.footnote)
+                    Text("Paused")
+                        .font(.footnote)
+                default:
+                    EmptyView()
+                }
             }
-            
             // Solve button and controls
             switch model.solvingState {
             case .idle:
@@ -283,113 +274,71 @@ struct SolverView: View {
                 } label: {
                     Text("Solve Maze")
                         .fontWeight(.semibold)
-                        .frame(height: 44)
+                        .padding(.vertical, 10)
                         .frame(maxWidth: .infinity)
-                        .background(model.generationState == .idle && model.fillState == .idle ? Color.accentColor : Color.gray)
-                        .foregroundColor(.white)
-                        .cornerRadius(12)
+                        .background(.accentLight)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
                 .buttonStyle(.plain)
                 .disabled(model.generationState != .idle || model.fillState != .idle)
 
             case .generating:
-                VStack(spacing: 10) {
-                    ProgressView("Solving Maze...")
-                        .progressViewStyle(.linear)
-                        .padding(.bottom, 4)
+                HStack(spacing: 12) {
                     
-                    HStack(spacing: 12) {
-                        Button {
-                            model.pauseMazeSolving()
-                        } label: {
-                            Label("Pause Solving", systemImage: "pause.fill")
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 44)
-                                .background(Color(UIColor.secondarySystemBackground))
-                                .foregroundColor(.primary)
-                                .cornerRadius(12)
-                        }
-                        .buttonStyle(.plain)
-
-                        Button {
-                            model.stopMazeSolving()
-                        } label: {
-                            Label("Stop Solving", systemImage: "stop.fill")
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 44)
-                                .background(Color.red.opacity(0.8))
-                                .foregroundColor(.white)
-                                .cornerRadius(12)
-                        }
-                        .buttonStyle(.plain)
+                    Button {
+                        model.pauseMazeSolving()
+                    } label: {
+                        Image(systemName: "pause.fill")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color.accentLight)
+                            .clipShape(Capsule())
                     }
+                    .buttonStyle(.plain)
+                    
+                    Button {
+                        withAnimation {
+                            model.stopMazeSolving()
+                        }
+                    } label: {
+                        Image(systemName: "stop.fill")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color.red.opacity(0.8))
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
             
             case .paused:
-                VStack(spacing: 10) {
-                    Text("Solving Paused")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .padding(.bottom, 4)
-                    
-                    HStack(spacing: 12) {
-                        Button {
-                            model.resumeMazeSolving()
-                        } label: {
-                            Label("Resume Solving", systemImage: "play.fill")
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 44)
-                                .background(Color.accentColor)
-                                .foregroundColor(.white)
-                                .cornerRadius(12)
-                        }
-                        .buttonStyle(.plain)
-
-                        Button {
-                            model.stopMazeSolving()
-                        } label: {
-                            Label("Stop Solving", systemImage: "stop.fill")
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 44)
-                                .background(Color.red.opacity(0.8))
-                                .foregroundColor(.white)
-                                .cornerRadius(12)
-                        }
-                        .buttonStyle(.plain)
+                HStack(spacing: 12) {
+                    Button {
+                        model.resumeMazeSolving()
+                    } label: {
+                        Image(systemName: "play.fill")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color.accentLight)
+                            .clipShape(Capsule())
                     }
+                    .buttonStyle(.plain)
+                    
+                    Button {
+                        model.stopMazeSolving()
+                    } label: {
+                        Image(systemName: "stop.fill")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color.red.opacity(0.8))
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
     }
 }
 
-// Helper for rounding specific corners
-extension View {
-    func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
-        clipShape(RoundedCorner(radius: radius, corners: corners))
-    }
+#Preview {
+    Frontend_iOS()
 }
-
-struct RoundedCorner: Shape {
-    var radius: CGFloat = .infinity
-    var corners: UIRectCorner = .allCorners
-
-    func path(in rect: CGRect) -> Path {
-        let path = UIBezierPath(roundedRect: rect, byRoundingCorners: corners, cornerRadii: CGSize(width: radius, height: radius))
-        return Path(path.cgPath)
-    }
-}
-
-#if DEBUG
-struct Frontend_iOS_Previews: PreviewProvider {
-    static var previews: some View {
-        Frontend_iOS()
-            .previewDevice("iPhone 13")
-        
-        Frontend_iOS()
-            .preferredColorScheme(.dark)
-            .previewDevice("iPhone 13")
-            .previewDisplayName("Dark Mode")
-    }
-}
-#endif
