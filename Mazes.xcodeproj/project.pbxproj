@@ -22,8 +22,11 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			platformFiltersByRelativePath = {
 				Frontend_iOS.swift = (ios, );
-				Frontend_macOS.swift = (macos, );
 				TempView.swift = (ios, );
+				"macOS_UI/Control Helpers/Generation_macOS.swift" = (macos, );
+				"macOS_UI/Control Helpers/Solving_macOS.swift" = (macos, );
+				macOS_UI/ControlsView_macOS.swift = (macos, );
+				macOS_UI/Frontend_macOS.swift = (macos, );
 			};
 			target = DBF374F82DD6E04B008C07AE /* Mazes */;
 		};
