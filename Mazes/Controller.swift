@@ -72,8 +72,10 @@ struct Controller: ViewRepresentable {
         
         #if os(macOS)
         var DEF_START_DIM: Int = 300
+        var DEF_START_THICKNESS: Float = 0.6
         #elseif os(iOS)
         var DEF_START_DIM: Int = 100
+        var DEF_START_THICKNESS: Float = 0.6
         #endif
 
         var displayScale: Float = 1.0
@@ -81,7 +83,7 @@ struct Controller: ViewRepresentable {
         init(_ parent: Controller, model: Model) {
             self.model = model
             self.parent = parent
-            self.uniforms = Uniforms()
+            self.uniforms = Uniforms(borderThickness: DEF_START_THICKNESS)
             super.init()
             model.coordinator = self
             setupMetal()

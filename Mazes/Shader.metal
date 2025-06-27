@@ -18,7 +18,9 @@ struct Uniforms {
     float2 resolution;
     float2 mazeDims;
     float cellSize;
+    float borderThickness;
     int maxDist;
+    int padding;
 };
 
 struct Cell {
@@ -155,7 +157,7 @@ fragment float4 border_fragment(float4 coord [[position]],
     
     float4 oobColor = DEFAULT_COLOR;
     float color = 1.0;
-    float thickness = max(uniforms.cellSize/20, 0.6);
+    float thickness = uniforms.borderThickness;
     float mthickness = uniforms.cellSize - thickness;
 
     // [dir] wall missing & [x|y] ≤ thickness ? zero

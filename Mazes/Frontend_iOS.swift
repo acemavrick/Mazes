@@ -126,7 +126,7 @@ struct GenerationView: View {
                 .disabled(model.generationState != .idle)
                 
                 switch model.generationState {
-                case .generating:
+                case .working:
                     ProgressView()
                         .progressViewStyle(.circular)
                     Text("Generating...")
@@ -155,7 +155,7 @@ struct GenerationView: View {
                 }
                 .buttonStyle(.plain)
 
-            case .generating:
+            case .working:
                     HStack(spacing: 12) {
                         Button {
                             model.pauseMazeGeneration()
@@ -252,7 +252,7 @@ struct SolverView: View {
                 .disabled(model.generationState != .idle || model.solvingState != .idle || model.fillState != .idle)
                 
                 switch model.solvingState {
-                case .generating:
+                case .working:
                     ProgressView()
                         .progressViewStyle(.circular)
                     Text("Solving...")
@@ -282,7 +282,7 @@ struct SolverView: View {
                 .buttonStyle(.plain)
                 .disabled(model.generationState != .idle || model.fillState != .idle)
 
-            case .generating:
+            case .working:
                 HStack(spacing: 12) {
                     
                     Button {

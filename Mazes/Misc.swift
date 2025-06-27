@@ -16,7 +16,9 @@ struct Uniforms {
     // maze dimensions, height x width
     var mazeDims: simd_float2 = [0.0, 0.0]
     var cellSize: Float = 0
-    var maxDist: Int32 = 1
+    var borderThickness: Float
+    var maxDist: Int32 = 0
+    var padding: Int32 = 0
     
     mutating func setResolution(_ size: CGSize) -> Bool {
         let newResolution = SIMD2<Float>(Float(size.width), Float(size.height))
@@ -36,6 +38,10 @@ struct Uniforms {
             return true
         }
         return false
+    }
+    
+    mutating func setBorderThickness(thickness newT : Float) {
+        borderThickness = newT
     }
     
     mutating func syncCellSize() {
