@@ -74,7 +74,6 @@ struct ControlsView: View {
             .padding() // Apply padding to the content within the ScrollView
         }
         .background(.thinMaterial)
-        .animation(.easeInOut(duration: 0.2), value: model.generationState)
-        .animation(.easeInOut(duration: 0.2), value: model.solvingState) // Add animation for solvingState changes
+        .animation(.easeInOut(duration: 0.2), value: (model.generationState, model.solvingState)) // Combine animations for generationState and solvingState
     }
 }
