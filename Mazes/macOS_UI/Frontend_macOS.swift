@@ -21,8 +21,8 @@ struct Frontend_macOS: View {
             ControlsView(model: model)
                 .frame(minWidth: 220, idealWidth: 260, maxWidth: 350) // Define size constraints for the control panel
         }
-        .navigationTitle("Mazes") // Sets the window title
-        .frame(minWidth: 700, minHeight: 500) // Suggest a minimum window size for usability
+        .navigationTitle("Maze Playground") // Sets the window title
+        .frame( minWidth: 975, idealWidth: 1035, minHeight: 640, idealHeight: 640)
     }
 }
 

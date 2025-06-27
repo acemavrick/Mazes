@@ -15,30 +15,27 @@ struct ControlsView: View {
             VStack(alignment: .leading, spacing: 18) {
                 // Maze Configuration Section
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Maze Configuration")
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                    
-                    Text("Algorithm:")
+                    Text("Generation")
                         .font(.headline)
                         .padding(.bottom, 2)
                     
                     MazeAlgorithmPickerView(model: model)
-                        .padding(.bottom, 10)
+                        .padding(.bottom, 5)
                     
                     GenerationControlsButtonView(model: model)
                 } // end maze config vstack
                 
                 Divider()
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 2)
                 
                 // Solver Options Section
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Solver Options")
+                    Text("Solving")
                         .font(.headline)
+                        .padding(.bottom, 2)
                     
                     SolverAlgorithmPickerView(model: model)
-                        .padding(.bottom, 10)
+                        .padding(.bottom, 5)
                     
                     SolverControlsButtonView(model: model)
                     Spacer()
