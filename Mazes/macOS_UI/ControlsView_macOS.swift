@@ -15,10 +15,25 @@ struct ControlsView: View {
             VStack(alignment: .leading, spacing: 18) {
                 // Maze Configuration Section
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Generation")
-                        .font(.headline)
-                        .padding(.bottom, 2)
-                    
+                    HStack(spacing: 8) {
+                        Text("Generation")
+                            .font(.headline)
+                        switch (model.generationState){
+                        case .idle:
+                            EmptyView()
+                        case .working:
+                            ProgressView()
+                                .tint(.accentLight)
+                                .progressViewStyle(.circular)
+                                .controlSize(.mini)
+                        case .paused:
+                            Image(systemName: "pause")
+                                .foregroundColor(.accent)
+                                .font(.headline)
+                        }
+                    }
+                    .padding(.bottom, 2)
+
                     MazeAlgorithmPickerView(model: model)
                         .padding(.bottom, 5)
                     
@@ -30,10 +45,25 @@ struct ControlsView: View {
                 
                 // Solver Options Section
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Solving")
-                        .font(.headline)
-                        .padding(.bottom, 2)
-                    
+                    HStack(spacing: 8) {
+                        Text("Solving")
+                            .font(.headline)
+                        switch (model.solvingState){
+                        case .idle:
+                            EmptyView()
+                        case .working:
+                            ProgressView()
+                                .tint(.accentLight)
+                                .progressViewStyle(.circular)
+                                .controlSize(.mini)
+                        case .paused:
+                            Image(systemName: "pause")
+                                .foregroundColor(.accent)
+                                .font(.headline)
+                        }
+                    }
+                    .padding(.bottom, 2)
+
                     SolverAlgorithmPickerView(model: model)
                         .padding(.bottom, 5)
                     

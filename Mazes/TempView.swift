@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct SwiftUIView: View {
-    var genState: MazeGenerationState = .paused
+    var genState: WorkingState = .paused
     var currentAlgorithm: MazeTypes = .prims
     var body: some View {
         HStack {
@@ -59,7 +59,7 @@ struct SwiftUIView: View {
                 }
                 .buttonStyle(.plain)
                 
-            case .generating:
+            case .working:
                 VStack(spacing: 10) {
                     HStack(spacing: 12) {
                         ProgressView()

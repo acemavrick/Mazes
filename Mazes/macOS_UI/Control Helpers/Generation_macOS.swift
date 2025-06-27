@@ -83,85 +83,100 @@ struct MazeAlgorithmPickerView: View {
 struct GenerationControlsButtonView: View {
     @ObservedObject var model: Model
     
-    @State var hovering: Bool = false
+    @State var hovering1: Bool = false
+    @State var hovering2: Bool = false
 
     var body: some View {
-        Group {
-            switch model.generationState {
-            case .idle:
+        switch model.generationState {
+        case .idle:
+            Button {
+                withAnimation {
+                    model.startMazeGeneration()
+                }
+            } label: {
+                Label("Generate New Maze", systemImage: "wand.and.sparkles")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .keyboardShortcut(.defaultAction)
+            .tint(.accent)
+            .scaleEffect(hovering1 ? 1.03 : 1)
+            .onHover { hovering in
+                withAnimation {
+                    self.hovering1 = hovering
+                }
+            }
+            
+        case .working:
+            HStack {
                 Button {
-                    withAnimation {
-                        model.startMazeGeneration()
-                    }
+                    model.pauseMazeGeneration()
                 } label: {
-                    Label("Generate New Maze", systemImage: "wand.and.sparkles")
+                    Label("Pause", systemImage: "pause.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-                .keyboardShortcut(.defaultAction)
                 .tint(.accent)
-                .scaleEffect(hovering ? 1.03 : 1)
-                
-            case .generating:
-                VStack(spacing: 10) {
-                    HStack {
-                        Button {
-                            model.pauseMazeGeneration()
-                        } label: {
-                            Label("Pause", systemImage: "pause.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .controlSize(.large)
-                        .tint(Color.green)
-                        
-                        Button {
-                            model.stopMazeGeneration()
-                        } label: {
-                            Label("Stop", systemImage: "stop.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .controlSize(.large)
-                        .tint(.red)
+                .scaleEffect(hovering1 ? 1.03 : 1)
+                .onHover { hovering in
+                    withAnimation {
+                        self.hovering1 = hovering
                     }
-                    ProgressView("Generating Maze...")
-                        .progressViewStyle(.linear)
+                }
+                
+                Button {
+                    model.stopMazeGeneration()
+                } label: {
+                    Label("Stop", systemImage: "stop.fill")
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 5)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(.red)
+                .scaleEffect(hovering2 ? 1.03 : 1)
+                .onHover { hovering in
+                    withAnimation {
+                        self.hovering2 = hovering
+                    }
+                }
+            } // end hstack
+            
+        case .paused:
+            HStack {
+                Button {
+                    model.resumeMazeGeneration()
+                } label: {
+                    Label("Resume", systemImage: "play.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(.accent)
+                .scaleEffect(hovering1 ? 1.03 : 1)
+                .onHover { hovering in
+                    withAnimation {
+                        self.hovering1 = hovering
+                    }
                 }
                 
-            case .paused:
-                VStack(spacing: 10) {
-                    HStack {
-                        Button {
-                            model.resumeMazeGeneration()
-                        } label: {
-                            Label("Resume", systemImage: "play.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .controlSize(.large)
-                        .tint(Color.green)
-                        
-                        Button {
-                            model.stopMazeGeneration()
-                        } label: {
-                            Label("Stop", systemImage: "stop.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .controlSize(.large)
-                        .tint(.red)
-                    }
-                    Text("Generation Paused")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.vertical, 5)
+                Button {
+                    model.stopMazeGeneration()
+                } label: {
+                    Label("Stop", systemImage: "stop.fill")
+                        .frame(maxWidth: .infinity)
                 }
-            } // end switch
-        } // end group
-        .onHover { inside in
-            withAnimation {
-                hovering = inside
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(.red)
+                .scaleEffect(hovering2 ? 1.03 : 1)
+                .onHover { hovering in
+                    withAnimation {
+                        self.hovering2 = hovering
+                    }
+                }
             }
-        }
+        } // end switch
     } // end body
 }

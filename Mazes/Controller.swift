@@ -71,7 +71,7 @@ struct Controller: ViewRepresentable {
         
         
         #if os(macOS)
-        var DEF_START_DIM: Int = 100
+        var DEF_START_DIM: Int = 300
         var DEF_START_THICKNESS: Float = 0.6
         #elseif os(iOS)
         var DEF_START_DIM: Int = 100

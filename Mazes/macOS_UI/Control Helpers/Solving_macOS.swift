@@ -73,7 +73,7 @@ struct SolverAlgorithmPickerView: View {
             ForEach(SolveTypes.allCases) { type in
                 SolverAlgorithmOptionView(model: model, type: type)
                     .buttonStyle(.plain)
-                    .disabled(model.generationState != .idle)
+                    .disabled(model.solvingState != .idle)
             }
         }
     }
@@ -82,86 +82,101 @@ struct SolverAlgorithmPickerView: View {
 struct SolverControlsButtonView: View {
     @ObservedObject var model: Model
     
-    @State var hovering: Bool = false
-    
+    @State var hovering1: Bool = false
+    @State var hovering2: Bool = false
+
     var body: some View {
-        Group {
-            switch model.solvingState {
-            case .idle:
+        switch model.solvingState {
+        case .idle:
+            //        case .paused:
+            Button {
+                withAnimation {
+                    model.startMazeSolving()
+                }
+            } label: {
+                Label("Solve Maze", systemImage: "location.north.line.fill")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .keyboardShortcut(.defaultAction)
+            .tint(.accent)
+            .scaleEffect(hovering1 ? 1.03 : 1)
+            .onHover { hovering in
+                withAnimation {
+                    self.hovering1 = hovering
+                }
+            }
+            
+        case .working:
+            HStack {
                 Button {
-                    withAnimation {
-                        model.startMazeSolving()
-                    }
+                    model.pauseMazeSolving()
                 } label: {
-                    Label("Solve Maze", systemImage: "figure.walk.motion")
+                    Label("Pause", systemImage: "pause.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-                .disabled(model.generationState != .idle || model.fillState != .idle)
                 .tint(.accent)
-                .scaleEffect(hovering ? 1.03 : 1)
-                
-            case .generating: // Actively solving
-                VStack(spacing: 10) {
-                    HStack {
-                        Button {
-                            model.pauseMazeSolving()
-                        } label: {
-                            Label("Pause Solving", systemImage: "pause.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .controlSize(.large)
-                        .tint(Color.orange) // Use orange for pause
-                        
-                        Button {
-                            model.stopMazeSolving()
-                        } label: {
-                            Label("Stop Solving", systemImage: "stop.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .controlSize(.large)
-                        .tint(.red)
+                .scaleEffect(hovering1 ? 1.03 : 1)
+                .onHover { hovering in
+                    withAnimation {
+                        self.hovering1 = hovering
                     }
-                    ProgressView("Solving Maze...")
-                        .progressViewStyle(.linear)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 5)
                 }
                 
-            case .paused: // Solving is paused
-                VStack(spacing: 10) {
-                    HStack {
-                        Button {
-                            model.resumeMazeSolving()
-                        } label: {
-                            Label("Resume Solving", systemImage: "play.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .controlSize(.large)
-                        .tint(Color.green)
-                        
-                        Button {
-                            model.stopMazeSolving()
-                        } label: {
-                            Label("Stop Solving", systemImage: "stop.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .controlSize(.large)
-                        .tint(.red)
+                Button {
+                    model.stopMazeSolving()
+                } label: {
+                    Label("Stop", systemImage: "stop.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(.red)
+                .scaleEffect(hovering2 ? 1.03 : 1)
+                .onHover { hovering in
+                    withAnimation {
+                        self.hovering2 = hovering
                     }
-                    Text("Solving Paused")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.vertical, 5)
-                } // end case .paused
-            } // end switch
-        } // end group
-        .onHover { inside in
-            withAnimation {
-                hovering = inside
+                }
+            } // end hstack
+            
+        case .paused:
+            HStack {
+                Button {
+                    model.resumeMazeSolving()
+                } label: {
+                    Label("Resume", systemImage: "play.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(.accent)
+                .scaleEffect(hovering1 ? 1.03 : 1)
+                .onHover { hovering in
+                    withAnimation {
+                        self.hovering1 = hovering
+                    }
+                }
+                
+                Button {
+                    model.stopMazeSolving()
+                } label: {
+                    Label("Stop", systemImage: "stop.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(.red)
+                .scaleEffect(hovering2 ? 1.03 : 1)
+                .onHover { hovering in
+                    withAnimation {
+                        self.hovering2 = hovering
+                    }
+                }
             }
-        }
+        } // end switch
     } // end body
 }
-
