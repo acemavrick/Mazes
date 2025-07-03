@@ -118,6 +118,7 @@ class Maze {
     }
     
     func resizeMaze(width: Int, height: Int) -> Bool {
+        // also clears the maze
         if self.width == width && self.height == height { return false }
         self.width = width
         self.height = height

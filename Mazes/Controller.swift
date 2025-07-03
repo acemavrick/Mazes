@@ -68,13 +68,15 @@ struct Controller: ViewRepresentable {
         var commandQueue: MTLCommandQueue?
         var lastUpdateTime: CFTimeInterval = 0
         
-        
+        var speedFactor: Float = 1.0
+        var currentDim_WH: [Int]
+        var currentThickness: Float
         
         #if os(macOS)
-        var DEF_START_DIM: Int = 300
+        var DEF_START_DIM: [Int] = [300, 300]
         var DEF_START_THICKNESS: Float = 0.6
         #elseif os(iOS)
-        var DEF_START_DIM: Int = 100
+        var DEF_START_DIM: [Int] = [103, 103]
         var DEF_START_THICKNESS: Float = 0.6
         #endif
 
@@ -84,11 +86,13 @@ struct Controller: ViewRepresentable {
             self.model = model
             self.parent = parent
             self.uniforms = Uniforms(borderThickness: DEF_START_THICKNESS)
+            self.currentDim_WH = DEF_START_DIM
+            self.currentThickness = DEF_START_THICKNESS
             super.init()
             model.coordinator = self
             setupMetal()
-            self.maze = Maze(device: self.device!, width: DEF_START_DIM, height: DEF_START_DIM, coordinator: self)
-            _ = self.uniforms.setMazeDims(height: DEF_START_DIM, width: DEF_START_DIM)
+            self.maze = Maze(device: self.device!, width: self.currentDim_WH[0], height: self.currentDim_WH[1], coordinator: self)
+            _ = self.uniforms.setMazeDims(height: self.currentDim_WH[1], width: self.currentDim_WH[0])
         }
         
         func generateMaze(type: MazeTypes, completion: @escaping (Bool) -> Void) {
@@ -185,6 +189,23 @@ struct Controller: ViewRepresentable {
             print("Coordinator: Calling bfsFill(fromx: \(col), fromy: \(row)) with completion.")
             maze.bfsFill(fromx: col, fromy: row, completion: completion)
         }
+        
+        // property control
+        func setSpeedFactor(to factor: Float) {
+            self.speedFactor = factor
+        }
+        
+        func setMazeSize(width: Int, height: Int) {
+            // resize maze.
+            guard let maze = self.maze else { return }
+            
+            // attempt to freeze any maze operations before restarting it
+            maze.stopSolving()
+            maze.stopGeneration()
+            
+            _ = maze.resizeMaze(width: width, height: height)
+            _ = self.uniforms.setMazeDims(height: height, width: width)
+        }
 
         // --- Solving Control Passthrough Methods ---
         func pauseMazeSolving() {
@@ -267,14 +288,9 @@ struct Controller: ViewRepresentable {
         func draw(in view: MTKView) {
             // update time…
             let currentTime = CACurrentMediaTime()
-            let deltaTime: Float = Float(currentTime - lastUpdateTime)
             lastUpdateTime = currentTime
             
-            #if os(iOS)
-            uniforms.time += 1.0/Float(view.preferredFramesPerSecond)
-            #else
-            uniforms.time += deltaTime
-            #endif
+            uniforms.time += 1.0/Float(view.preferredFramesPerSecond) * speedFactor
 
 
             guard let drawable        = view.currentDrawable,

@@ -68,12 +68,77 @@ struct ControlsView: View {
                         .padding(.bottom, 5)
                     
                     SolverControlsButtonView(model: model)
-                    Spacer()
                 } // end solver vstack
             }
             .padding() // Apply padding to the content within the ScrollView
+            
+            Divider()
+                .padding(.bottom, 2)
+            
+            VStack(alignment: .leading, spacing: 8) {
+                // settings panel
+                Text("Settings")
+                    .font(.headline)
+                SettingsPanel(model: model)
+                Spacer()
+            }
+            .padding()
         }
         .background(.thinMaterial)
-        .animation(.easeInOut(duration: 0.2), value: (model.generationState, model.solvingState)) // Combine animations for generationState and solvingState
+    }
+}
+
+struct SettingsPanel: View {
+    @ObservedObject var model: Model
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            VStack(alignment: .leading) {
+                Text(String(format: "Speed factor (%.3f):", model.speedFactor))
+                HStack {
+                    Button {
+                        withAnimation {
+                            model.speedFactor = 1.0
+                            model.syncSpeedFactor()
+                        }
+                    } label: {
+                        Image(systemName: "arrow.trianglehead.counterclockwise")
+                    }
+                    
+                    Slider(value: $model.speedFactor,
+                           in: 0.1...5) {   }
+                    onEditingChanged: { _ in
+                        model.syncSpeedFactor()
+                    }
+                    .tint(.accent)
+                    
+                    // stepper buttons
+                    HStack(spacing: 2) {
+                        Button {
+                            withAnimation {
+                                model.speedFactor -= 0.001
+                                model.syncSpeedFactor()
+                            }
+                        } label: {
+                            Image(systemName: "chevron.left")
+                        }
+                        
+                        Button {
+                            withAnimation {
+                                model.speedFactor += 0.001
+                                model.syncSpeedFactor()
+                            }
+                        } label: {
+                            Image(systemName: "chevron.right")
+                        }
+                    } // end hstack
+                } // end hstack
+                .font(.caption)
+            }
+            
+            HStack {
+                Text("WxH: ")
+            }
+        }
     }
 }

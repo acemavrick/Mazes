@@ -22,6 +22,18 @@ class Model: ObservableObject {
     @Published var generationState: WorkingState = .idle
     @Published var solvingState: WorkingState = .idle // For solving algorithms
     @Published var fillState: WorkingState = .idle    // For bfsFill triggered by tap
+    
+    @Published var speedFactor: Float = 1.0
+    @Published var width: Int = 0
+    @Published var height: Int = 0
+    
+    public func syncSpeedFactor() {
+        coordinator?.setSpeedFactor(to: speedFactor)
+    }
+    
+    public func syncMazeSize() {
+        
+    }
 
     // Handles tap gestures on the maze view
     public func handleMazeTap(at point: CGPoint, in size: CGSize) {
