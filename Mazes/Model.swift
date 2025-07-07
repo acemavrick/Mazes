@@ -24,15 +24,17 @@ class Model: ObservableObject {
     @Published var fillState: WorkingState = .idle    // For bfsFill triggered by tap
     
     @Published var speedFactor: Float = 1.0
-    @Published var width: Int = 0
-    @Published var height: Int = 0
-    
+    @Published var trueMazeWidth: Int = 0
+    @Published var trueMazeHeight: Int = 0
+
     public func syncSpeedFactor() {
         coordinator?.setSpeedFactor(to: speedFactor)
     }
     
-    public func syncMazeSize() {
-        
+    public func sendMazeSize(width: Int, height: Int) {
+        guard let coordinator = coordinator else
+        { return }
+        coordinator.setMazeSize(width: width, height: height)
     }
 
     // Handles tap gestures on the maze view

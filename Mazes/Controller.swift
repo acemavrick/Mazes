@@ -89,10 +89,14 @@ struct Controller: ViewRepresentable {
             self.currentDim_WH = DEF_START_DIM
             self.currentThickness = DEF_START_THICKNESS
             super.init()
-            model.coordinator = self
             setupMetal()
             self.maze = Maze(device: self.device!, width: self.currentDim_WH[0], height: self.currentDim_WH[1], coordinator: self)
             _ = self.uniforms.setMazeDims(height: self.currentDim_WH[1], width: self.currentDim_WH[0])
+            model.coordinator = self
+            
+            let dims = self.currentDim_WH
+            model.trueMazeWidth = dims[0]
+            model.trueMazeHeight = dims[1]
         }
         
         func generateMaze(type: MazeTypes, completion: @escaping (Bool) -> Void) {
@@ -205,6 +209,10 @@ struct Controller: ViewRepresentable {
             
             _ = maze.resizeMaze(width: width, height: height)
             _ = self.uniforms.setMazeDims(height: height, width: width)
+            self.currentDim_WH = [width, height]
+
+            model.trueMazeWidth = width
+            model.trueMazeHeight = height
         }
 
         // --- Solving Control Passthrough Methods ---

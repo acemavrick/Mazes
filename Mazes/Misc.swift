@@ -47,17 +47,17 @@ struct Uniforms {
     mutating func syncCellSize() {
         // Calculate cell size based on resolution and maze dimensions
         let minRes = min(resolution.x, resolution.y)
-        let minDim = min(mazeDims.x, mazeDims.y)
+        let maxDim = max(mazeDims.x, mazeDims.y)
         
-        // find the smallest dimension of the maze
-        if (minRes == 0 || minDim == 0) {
+        // resize to fit
+        if (minRes == 0 || maxDim == 0) {
             cellSize = 0
         } else {
-            cellSize = floor(minRes / minDim)
+            cellSize = floor(minRes / maxDim)
         }
-//        print(resolution)
-//        print(mazeDims)
-//        print(cellSize)
+        print(resolution)
+        print(mazeDims)
+        print(cellSize)
     }
 }
 

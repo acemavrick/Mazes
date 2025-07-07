@@ -90,7 +90,23 @@ struct ControlsView: View {
 
 struct SettingsPanel: View {
     @ObservedObject var model: Model
+    @State private var width: String
+    @State private var height: String
+
+    init(model: Model) {
+        self.model = model
+        _width = State(initialValue: String(model.trueMazeWidth))
+        _height = State(initialValue: String(model.trueMazeHeight))
+    }
     
+    var widthMatches: Bool {
+        Int(width) == model.trueMazeWidth
+    }
+    
+    var heightMatches: Bool {
+        Int(height) == model.trueMazeHeight
+    }
+
     var body: some View {
         VStack(spacing: 4) {
             VStack(alignment: .leading) {
@@ -136,9 +152,51 @@ struct SettingsPanel: View {
                 .font(.caption)
             }
             
-            HStack {
-                Text("WxH: ")
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Size (WxH):")
+                    .font(.caption)
+                HStack {
+                    TextField("W", text: $width)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .frame(maxWidth: 60)
+                        .multilineTextAlignment(.center)
+                        .background(widthMatches ? Color.clear : Color.red.opacity(0.3))
+                        .cornerRadius(5)
+
+                    TextField("H", text: $height)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .frame(maxWidth: 60)
+                        .multilineTextAlignment(.center)
+                        .background(heightMatches ? Color.clear : Color.red.opacity(0.3))
+                        .cornerRadius(5)
+
+                    Spacer()
+
+                    Button(action: {
+                        if let w = Int(width), let h = Int(height) {
+                            model.sendMazeSize(width: w, height: h)
+                        }
+                    }) {
+                        Text("Submit")
+                    }
+                    .disabled(widthMatches && heightMatches)
+
+                    Button(action: {
+                        let trueWidth = model.trueMazeWidth
+                        let trueHeight = model.trueMazeHeight
+                        width = String(trueWidth)
+                        height = String(trueHeight)
+                    }) {
+                        Image(systemName: "arrow.counterclockwise")
+                    }
+                }
             }
+        }
+        .onChange(of: model.trueMazeWidth) {
+            width = String(model.trueMazeWidth)
+        }
+        .onChange(of: model.trueMazeHeight) {
+            height = String(model.trueMazeHeight)
         }
     }
 }
