@@ -9,7 +9,7 @@
 using namespace metal;
 
 // Default colors
-#define DEFAULT_COLOR float4(0.55, 0.55, 0.55, 1.0)  // Light gray for unvisited cells
+#define DEFAULT_COLOR float4(0.50, 0.50, 0.50, 1.0) 
 #define TRANSPARENT float4(0.0)
 
 // current time (seconds) and viewport size (pixels)

@@ -19,6 +19,15 @@ struct Frontend_iOS: View {
     }
 }
 
+struct ModernButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+            .sensoryFeedback(.impact(weight: .light), trigger: configuration.isPressed)
+    }
+}
+
 struct MazeView_iOS: View {
     @ObservedObject var model: Model
     private let controllerPadding: CGFloat = 5 // Padding around the Metal view
@@ -120,7 +129,7 @@ struct GenerationView: View {
                         Image(systemName: "chevron.down")
                             .font(.caption)
                     }
-                    .foregroundStyle(.accent)
+                    .foregroundStyle(.accentLight)
                     .padding(.vertical, 6)
                 }
                 .disabled(model.generationState != .idle)
@@ -146,14 +155,14 @@ struct GenerationView: View {
                 Button {
                     model.startMazeGeneration()
                 } label: {
-                    Text("Generate New Maze")
+                    Label("Generate New Maze", systemImage: "wand.and.sparkles")
                         .fontWeight(.semibold)
-                        .padding(.vertical, 10)
+                        .padding(.vertical, 4)
                         .frame(maxWidth: .infinity)
-                        .background(Color.accentLight)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderedProminent)
+                .tint(.accent)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
 
             case .working:
                     HStack(spacing: 12) {
@@ -162,11 +171,11 @@ struct GenerationView: View {
                         } label: {
                             Image(systemName: "pause.fill")
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
-                                .background(.accentLight)
-                                .clipShape(Capsule())
+                                .padding(.vertical, 4)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.borderedProminent)
+                        .tint(.accent)
+                        .clipShape(Capsule())
 
                         Button {
                             withAnimation {
@@ -175,11 +184,11 @@ struct GenerationView: View {
                         } label: {
                             Image(systemName: "stop.fill")
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
-                                .background(Color.red.opacity(0.8))
-                                .clipShape(Capsule())
+                                .padding(.vertical, 4)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.borderedProminent)
+                        .tint(.red)
+                        .clipShape(Capsule())
                 }
             
             case .paused:
@@ -189,11 +198,11 @@ struct GenerationView: View {
                     } label: {
                         Image(systemName: "play.fill")
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(.accentLight)
-                            .clipShape(Capsule())
+                            .padding(.vertical, 4)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderedProminent)
+                    .tint(.accent)
+                    .clipShape(Capsule())
                     
                     Button {
                         withAnimation {
@@ -202,14 +211,15 @@ struct GenerationView: View {
                     } label: {
                         Image(systemName: "stop.fill")
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(Color.red.opacity(0.8))
-                            .clipShape(Capsule())
+                            .padding(.vertical, 4)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                    .clipShape(Capsule())
                 }
             }
         }
+        .buttonStyle(ModernButtonStyle())
     }
 }
 
@@ -246,7 +256,7 @@ struct SolverView: View {
                         Image(systemName: "chevron.down")
                             .font(.caption)
                     }
-                    .foregroundStyle(.accent)
+                    .foregroundStyle(.accentLight)
                     .padding(.vertical, 6)
                 }
                 .disabled(model.generationState != .idle || model.solvingState != .idle || model.fillState != .idle)
@@ -272,14 +282,14 @@ struct SolverView: View {
                 Button {
                     model.startMazeSolving()
                 } label: {
-                    Text("Solve Maze")
+                    Label("Solve Maze", systemImage: "location.north.line.fill")
                         .fontWeight(.semibold)
-                        .padding(.vertical, 10)
+                        .padding(.vertical, 4)
                         .frame(maxWidth: .infinity)
-                        .background(.accentLight)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderedProminent)
+                .tint(.accent)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
                 .disabled(model.generationState != .idle || model.fillState != .idle)
 
             case .working:
@@ -290,11 +300,11 @@ struct SolverView: View {
                     } label: {
                         Image(systemName: "pause.fill")
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(Color.accentLight)
-                            .clipShape(Capsule())
+                            .padding(.vertical, 4)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderedProminent)
+                    .tint(.accent)
+                    .clipShape(Capsule())
                     
                     Button {
                         withAnimation {
@@ -303,11 +313,11 @@ struct SolverView: View {
                     } label: {
                         Image(systemName: "stop.fill")
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(Color.red.opacity(0.8))
-                            .clipShape(Capsule())
+                            .padding(.vertical, 4)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                    .clipShape(Capsule())
                 }
             
             case .paused:
@@ -317,25 +327,26 @@ struct SolverView: View {
                     } label: {
                         Image(systemName: "play.fill")
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(Color.accentLight)
-                            .clipShape(Capsule())
+                            .padding(.vertical, 4)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderedProminent)
+                    .tint(.accent)
+                    .clipShape(Capsule())
                     
                     Button {
                         model.stopMazeSolving()
                     } label: {
                         Image(systemName: "stop.fill")
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(Color.red.opacity(0.8))
-                            .clipShape(Capsule())
+                            .padding(.vertical, 4)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                    .clipShape(Capsule())
                 }
             }
         }
+        .buttonStyle(ModernButtonStyle())
     }
 }
 

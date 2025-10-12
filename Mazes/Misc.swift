@@ -31,7 +31,7 @@ struct Uniforms {
     }
     
     mutating func setMazeDims(height: Int, width: Int) -> Bool {
-        let newMazeDims = SIMD2<Float>(Float(height), Float(width))
+        let newMazeDims = SIMD2<Float>(Float(width), Float(height))
         if newMazeDims != mazeDims {
             mazeDims = newMazeDims
             syncCellSize()
@@ -45,19 +45,15 @@ struct Uniforms {
     }
     
     mutating func syncCellSize() {
-        // Calculate cell size based on resolution and maze dimensions
-        let minRes = min(resolution.x, resolution.y)
-        let minDim = min(mazeDims.x, mazeDims.y)
-        
-        // find the smallest dimension of the maze
-        if (minRes == 0 || minDim == 0) {
+        guard mazeDims.x > 0 && mazeDims.y > 0 && resolution.x > 0 && resolution.y > 0 else {
             cellSize = 0
-        } else {
-            cellSize = floor(minRes / minDim)
+            return
         }
-//        print(resolution)
-//        print(mazeDims)
-//        print(cellSize)
+
+        let cellSizeBasedOnWidth = floor(resolution.x / mazeDims.x)
+        let cellSizeBasedOnHeight = floor(resolution.y / mazeDims.y)
+        
+        cellSize = min(cellSizeBasedOnWidth, cellSizeBasedOnHeight)
     }
 }
 
